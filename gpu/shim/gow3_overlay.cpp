@@ -427,7 +427,11 @@ void PerformanceTab() {
     }
     ImGui::SeparatorText("Applied on restart");
     if (BeginRows("##restart")) {
-        static const char* const resolution_labels[] = {"Native (1080p)", "480p", "720p", "1440p", "1800p", "4K"};
+        // One label per G::Resolutions entry, in its order (800p was missing: the labels after 720p
+        // named the next resolution, and the last choice read past the array).
+        static const char* const resolution_labels[] = {"Native (1080p)", "480p", "720p", "800p", "1440p", "1800p",
+                                                        "4K"};
+        static_assert(std::size(resolution_labels) == G::Resolutions.size());
         ChoiceRow("Render resolution", s.render_resolution, resolution_labels, nullptr, int(G::Resolutions.size()),
                   "The resolution the game draws at. Higher is sharper and slower.");
         static const char* const engine_labels[] = {"60 (original)", "120", "240"};
