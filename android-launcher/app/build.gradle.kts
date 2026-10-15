@@ -81,15 +81,15 @@ android {
 // 调试运行时 payload 不是源文件：它由仓库工具生成。
 // 在任何 debug 构建之前（幂等地）暂存它，以便 Android Studio 一键构建携带
 // 匹配的无游戏运行时，与 tools/android/debug/build_debug_apk.sh 的做法一致。
-// GOW3_SKIP_DEBUG_RUNTIME_STAGE=1（CI 的 launcher-check：只编译和跑单元测试）跳过暂存。
-val skipDebugRuntimeStage = providers.environmentVariable("GOW3_SKIP_DEBUG_RUNTIME_STAGE")
-    .map { it == "1" }.orElse(false)
 val stageDebugRuntime by tasks.registering(Exec::class) {
     workingDir = rootProject.projectDir.parentFile
     commandLine("bash", "tools/android/debug/stage_debug_runtime.sh")
     // 没有可靠的 up-to-date 输入：总是重新执行（运行时缓存新鲜时很快）。
     outputs.upToDateWhen { false }
-    onlyIf { !skipDebugRuntimeStage.get() }
+    // GOW3_SKIP_DEBUG_RUNTIME_STAGE=1（CI 的 launcher-check：只编译和跑单元测试）跳过暂存。
+    // 局部 Provider：onlyIf 不能引用脚本级对象，否则 configuration cache 无法序列化。
+    val skip = providers.environmentVariable("GOW3_SKIP_DEBUG_RUNTIME_STAGE").map { it == "1" }.orElse(false)
+    onlyIf { !skip.get() }
 }
 tasks.matching { it.name == "preDebugBuild" }.configureEach {
     dependsOn(stageDebugRuntime)
