@@ -147,8 +147,10 @@ public final class GameActivity extends Activity {
         }
         String line=String.format(Locale.ROOT,"%tT Thermal: %s%s",System.currentTimeMillis(),event,state);
         android.util.Log.i("God of War III",line);
+        // The runtime's own logs directory only: creating gow3port here could race the first
+        // install, which renames its staged gow3port into place.
         File logs=new File(BASE,"logs");
-        logs.mkdirs();
+        if (!logs.isDirectory()) return;
         try (PrintWriter out=new PrintWriter(new java.io.FileWriter(new File(logs,"android-thermal.log"),true))) {
             out.println(line);
         } catch (Exception ignored) {}
