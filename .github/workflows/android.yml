@@ -81,7 +81,9 @@ jobs:
           # The debug unit tests need no runtime payload (app/build.gradle.kts stageDebugRuntime).
           GOW3_SKIP_DEBUG_RUNTIME_STAGE: '1'
         run: |
-          set -uo pipefail
+          # The runner starts bash with -e: it would end the step at the first failing check,
+          # before that check reports its errors.
+          set +e -uo pipefail
           failed=0
           check() {
               local name=$1
