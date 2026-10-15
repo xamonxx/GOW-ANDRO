@@ -40,7 +40,8 @@ def migrate_interpreters(rootfs):
 
     rewritten = 0
     for path in sorted(rootfs.rglob('*')):
-        if not path.is_file():
+        # An absolute symlink resolves on the build host: never inspect or rewrite through it.
+        if path.is_symlink() or not path.is_file():
             continue
         try:
             info = inspect(path)

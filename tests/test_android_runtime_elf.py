@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tools.android.validate_runtime_elf import ElfError, inspect, rewrite_interpreter
+from tools.android.validate_runtime_elf import ElfError, inspect, rewrite_interpreter, validate_tree
 
 
 def fake_elf(path, interpreter, capacity=64):
@@ -41,3 +41,17 @@ class RuntimeElfTests(unittest.TestCase):
             with self.assertRaisesRegex(ElfError, "explicit loader"):
                 rewrite_interpreter(path, "/data/user/0/com.gow3.android/files/rootfs/ld.so")
 
+    def test_tree_ignores_symlinks_that_resolve_on_the_build_host(self):
+        loader = "/data/user/0/com.gow3.android/files/rootfs/ld.so"
+        with tempfile.TemporaryDirectory() as directory:
+            host = Path(directory) / "host-mawk"
+            fake_elf(host, "/lib64/ld-linux-x86-64.so.2")
+            root = Path(directory) / "rootfs"
+            (root / "etc/alternatives").mkdir(parents=True)
+            fake_elf(root / "probe", loader)
+            try:
+                (root / "etc/alternatives/awk").symlink_to(host)
+            except OSError:
+                self.skipTest("symlinks are not available")
+            results = validate_tree(root, loader)
+            self.assertEqual([info["interpreter"] for info in results], [loader])

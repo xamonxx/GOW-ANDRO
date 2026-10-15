@@ -113,7 +113,9 @@ def validate_tree(root, expected_loader, reject=(), explicit_paths=(), allow_no_
     results = []
     explicit_paths = set(explicit_paths)
     allow_no_interp = set(allow_no_interp)
-    for path in sorted(p for p in root.rglob("*") if p.is_file()):
+    # Symlinks are skipped: one inside the tree is validated at its target, and an absolute one
+    # (etc/alternatives/awk -> /usr/bin/mawk) would resolve on the build host, not in the rootfs.
+    for path in sorted(p for p in root.rglob("*") if p.is_file() and not p.is_symlink()):
         try:
             info = inspect(path)
         except ElfError as error:
