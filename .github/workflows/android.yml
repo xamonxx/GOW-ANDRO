@@ -72,30 +72,46 @@ jobs:
             platforms;android-${{ env.ANDROID_PLATFORM }}
             build-tools;${{ env.ANDROID_BUILD_TOOLS }}
 
-      - name: Compile the launcher and run its unit tests
+      # Every check runs even when an earlier one fails. Reading a job log needs a GitHub sign-in;
+      # annotations do not (the run page, the check-run API), so a failing check also reports its
+      # error lines there.
+      - name: Compile the launcher, run the unit tests and checks
         shell: bash
+        env:
+          # The debug unit tests need no runtime payload (app/build.gradle.kts stageDebugRuntime).
+          GOW3_SKIP_DEBUG_RUNTIME_STAGE: '1'
         run: |
-          set -euo pipefail
-          android-launcher/gradlew -p android-launcher --no-daemon \
-            :app:compileReleaseKotlin :app:compileReleaseJavaWithJavac :app:testReleaseUnitTest
-
-      # gow3.ini as the in-game menu reads and writes it (gpu/CMakeLists.txt graphics-settings-test).
-      - name: Settings file unit test
-        shell: bash
-        run: |
-          set -euo pipefail
-          clang++ -std=c++23 -O1 -UNDEBUG -Igpu/shim tests/test_graphics_settings.cpp gpu/shim/gow3_settings.cpp \
-            -o "$RUNNER_TEMP/graphics-settings-test"
-          cd "$RUNNER_TEMP" && ./graphics-settings-test
-
-      - name: Python and shell checks
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 -m unittest discover -s tests -p 'test_android_*.py'
-          python3 -m unittest discover -s tests -p 'test_patches.py'
-          bash -n tools/android/device/run-gow3.sh
-          sh -n tools/android/device/run-gow3.sh
+          set -uo pipefail
+          failed=0
+          check() {
+              local name=$1
+              shift
+              local log="$RUNNER_TEMP/check.log"
+              "$@" 2>&1 | tee "$log"
+              local status=${PIPESTATUS[0]}
+              [[ $status = 0 ]] && return 0
+              local summary
+              summary=$({ sed -n '/What went wrong/,/^\* Try/p' "$log"
+                          grep -E -A3 '^e: |error:|FAILED|AssertionError|Assertion|Traceback|Error:' "$log"; } | head -n 80)
+              [[ -n $summary ]] || summary=$(tail -n 40 "$log")
+              summary=${summary//'%'/'%25'}
+              summary=${summary//$'\r'/}
+              summary=${summary//$'\n'/'%0A'}
+              echo "::error title=${name} failed (exit ${status})::${summary:0:6000}"
+              failed=1
+          }
+          # assembleRelease: the release job's own Gradle task, so the APK step cannot fail on
+          # launcher sources later.
+          check "Launcher build and unit tests" android-launcher/gradlew -p android-launcher --no-daemon \
+              :app:assembleRelease :app:testDebugUnitTest
+          # gow3.ini as the in-game menu reads and writes it (gpu/CMakeLists.txt graphics-settings-test).
+          check "Settings file test" bash -c 'clang++ -std=c++23 -O1 -UNDEBUG -Igpu/shim \
+              tests/test_graphics_settings.cpp gpu/shim/gow3_settings.cpp -o "$RUNNER_TEMP/graphics-settings-test" &&
+              cd "$RUNNER_TEMP" && ./graphics-settings-test'
+          check "Android Python tests" python3 -m unittest discover -s tests -p 'test_android_*.py'
+          check "Patch tests" python3 -m unittest discover -s tests -p 'test_patches.py'
+          check "run-gow3.sh syntax" bash -c 'bash -n tools/android/device/run-gow3.sh && sh -n tools/android/device/run-gow3.sh'
+          exit $failed
 
   release:
     name: Build signed Android release
