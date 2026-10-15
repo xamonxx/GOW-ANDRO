@@ -102,8 +102,39 @@ internal object LaunchParams {
                 LaunchOption("2", R.string.param_option_frames_2),
                 LaunchOption("0", R.string.param_option_unlimited),
             ),
-            defaultValue = "1",
+            // 移动端：2 让 CPU（FEX）在 GPU 绘制当前帧时准备下一帧。与 gow3-default.ini 保持一致。
+            defaultValue = "2",
             descriptionRes = R.string.param_desc_frames_queued,
+        ),
+        LaunchParam(
+            // run-gow3.sh：非 0 时设置 TU_KGSL_PWR_CONSTRAINT=max。
+            key = "gpu_boost", labelRes = R.string.param_gpu_boost, groupRes = R.string.param_group_performance,
+            options = listOf(
+                LaunchOption("0", R.string.param_option_off),
+                LaunchOption("1", R.string.param_option_on),
+            ),
+            defaultValue = "1",
+            descriptionRes = R.string.param_desc_gpu_boost,
+        ),
+        LaunchParam(
+            // run-gow3.sh：fast 时以 FEX_APP_CONFIG 载入 gow3-fex-compatible.json。
+            key = "cpu_mode", labelRes = R.string.param_cpu_mode, groupRes = R.string.param_group_performance,
+            options = listOf(
+                LaunchOption("fast", R.string.param_option_cpu_fast),
+                LaunchOption("accurate", R.string.param_option_cpu_accurate),
+            ),
+            defaultValue = "fast",
+            descriptionRes = R.string.param_desc_cpu_mode,
+        ),
+        LaunchParam(
+            // GameActivity：设备支持时调用 Window.setSustainedPerformanceMode(true)。
+            key = "sustained_perf", labelRes = R.string.param_sustained_perf, groupRes = R.string.param_group_performance,
+            options = listOf(
+                LaunchOption("0", R.string.param_option_off),
+                LaunchOption("1", R.string.param_option_on),
+            ),
+            defaultValue = "0",
+            descriptionRes = R.string.param_desc_sustained_perf,
         ),
         LaunchParam(
             key = "skip_network_choice", labelRes = R.string.param_offline_start, groupRes = R.string.param_group_startup,

@@ -41,6 +41,9 @@
     <string name="param_engine_fps">引擎帧率</string>
     <string name="param_vsync">垂直同步</string>
     <string name="param_frames_queued">排队帧数</string>
+    <string name="param_gpu_boost">GPU 加速</string>
+    <string name="param_cpu_mode">CPU 模式</string>
+    <string name="param_sustained_perf">持续性能</string>
     <string name="param_offline_start">离线启动</string>
     <string name="param_skip_intros">跳过开场</string>
     <string name="param_free_camera">自由视角</string>
@@ -65,12 +68,17 @@
     <string name="param_option_off">关</string>
     <string name="param_option_frames_1">1（最低延迟）</string>
     <string name="param_option_frames_2">2</string>
+    <string name="param_option_cpu_fast">快速</string>
+    <string name="param_option_cpu_accurate">精确</string>
 
     <!-- 启动参数：说明 -->
     <string name="param_desc_upscaler">以较低的内部分辨率渲染游戏，再用 FSR 3.1 把画面放大到你的屏幕，在保持清晰画面的同时获得更高性能。关闭时以固定 1280×720 渲染。</string>
     <string name="param_desc_engine_fps">游戏引擎自身更新游戏世界的速度，与显示无关。60 是游戏原生速度；更高数值让动作更流畅，但更耗电。</string>
     <string name="param_desc_vsync">将游戏帧与屏幕刷新率同步，避免画面撕裂。除非出现撕裂或卡顿，否则保持开启。</string>
     <string name="param_desc_frames_queued">游戏在屏幕上显示之前预先准备多少帧。数值越低越能降低输入延迟；数值越高在较弱的硬件上可能更流畅。</string>
+    <string name="param_desc_gpu_boost">游戏绘制时让 GPU 保持最高频率。帧率更稳，但手机更热、更耗电。</string>
+    <string name="param_desc_cpu_mode">快速：跳过开销最大的 x86 内存顺序模拟。若游戏随机卡死或崩溃，请切换为精确。</string>
+    <string name="param_desc_sustained_perf">让 CPU 和 GPU 保持在手机能长时间维持的频率：峰值略低，但发热后不会掉帧。仅支持的手机可用。</string>
     <string name="param_desc_free_camera">允许你自由移动视角环游世界，用于探索或测试，而不是跟随游戏视角。仅供实验，不适合正常游玩。</string>
 
     <!-- 帧生成卡片 -->

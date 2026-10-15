@@ -41,6 +41,9 @@
     <string name="param_engine_fps">Engine FPS</string>
     <string name="param_vsync">VSync</string>
     <string name="param_frames_queued">Frames queued</string>
+    <string name="param_gpu_boost">GPU boost</string>
+    <string name="param_cpu_mode">CPU mode</string>
+    <string name="param_sustained_perf">Sustained performance</string>
     <string name="param_offline_start">Offline start</string>
     <string name="param_skip_intros">Skip intros</string>
     <string name="param_free_camera">Free camera</string>
@@ -65,12 +68,17 @@
     <string name="param_option_off">OFF</string>
     <string name="param_option_frames_1">1 (lowest latency)</string>
     <string name="param_option_frames_2">2</string>
+    <string name="param_option_cpu_fast">Fast</string>
+    <string name="param_option_cpu_accurate">Accurate</string>
 
     <!-- 启动参数：说明 -->
     <string name="param_desc_upscaler">Renders the game at a lower internal resolution and then uses FSR 3.1 to scale the image up to your screen, so you get more performance while keeping a sharp picture. Off renders at a fixed 1280×720.</string>
     <string name="param_desc_engine_fps">How fast the game engine itself updates the game world, separate from the display. 60 is the game\'s original speed; higher values make motion smoother but use more power.</string>
     <string name="param_desc_vsync">Syncs the game\'s frames with your screen\'s refresh rate to stop visual tearing. Leave it ON unless you see tearing or stutter.</string>
     <string name="param_desc_frames_queued">How many frames the game prepares ahead of what the screen shows. Lower numbers cut input lag; higher numbers can improve smoothness on weaker hardware.</string>
+    <string name="param_desc_gpu_boost">Keeps the GPU at its top clock while the game draws. Smoother frame rate, but the phone runs warmer and uses more battery.</string>
+    <string name="param_desc_cpu_mode">Fast skips the x86 memory-order emulation, which costs the most CPU time. If the game hangs or crashes at random, switch to Accurate.</string>
+    <string name="param_desc_sustained_perf">Holds the CPU and GPU at clocks the phone can keep for a long session: a slightly lower peak, but no slowdown when it heats up. Only on phones that support it.</string>
     <string name="param_desc_free_camera">Lets you move the camera freely around the world for exploring or testing, instead of following the gameplay camera. Meant for experimentation, not normal play.</string>
 
     <!-- 帧生成卡片 -->

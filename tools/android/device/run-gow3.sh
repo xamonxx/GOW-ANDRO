@@ -67,6 +67,29 @@ fi
 # One setting from gow3.ini, last value wins (the launcher writes whole-file on changes).
 setting() { sed -n "s/^$1=//p" "$GOW3_CONFIG" 2>/dev/null | tail -n 1; }
 
+# GPU clock (gpu_boost, default on): our Turnip's TU_KGSL_PWR_CONSTRAINT (mesa-patches/0006) keeps
+# the GPU at its top frequency while the game's context has work. KGSL's governor follows the
+# load, and frames that wait for the GPU one after the other keep it low enough to hold the clock
+# down. Turnip logs "kgsl: power constraint max on context N: set" (or why not).
+if [ "$(setting gpu_boost)" = 0 ]; then
+    echo "GPU: KGSL power constraint off (gpu_boost=0)"
+else
+    export TU_KGSL_PWR_CONSTRAINT=max
+    echo "GPU: KGSL power constraint max"
+fi
+# FEX profile (cpu_mode, default fast): gow3-fex-compatible.json drops x86 memory-order (TSO)
+# emulation, the largest per-access cost of the JIT. cpu_mode=accurate keeps FEX's defaults, for
+# when a game thread race (a hang or a random crash) shows up with the fast profile.
+fex_profile="$base/gow3-fex-compatible.json"
+if [ "$(setting cpu_mode)" = accurate ]; then
+    echo "CPU: FEX profile accurate (cpu_mode=accurate)"
+elif [ -f "$fex_profile" ]; then
+    export FEX_APP_CONFIG="$fex_profile"
+    echo "CPU: FEX profile fast ($fex_profile)"
+else
+    echo "CPU: FEX profile accurate (no $fex_profile in this runtime)"
+fi
+
 # vk_swapchain.cpp 在 lsfg-vk 创建/present 失败时以这个码退出（kLsfgFailureExitCode）。两边必须一致。
 lsfg_failure_code=46
 # LSFG 自动回退时写这个标记，launcher（GameActivity.pollFrames）轮询到后会重新选 display mode，
