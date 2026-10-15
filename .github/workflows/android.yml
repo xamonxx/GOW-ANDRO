@@ -20,6 +20,10 @@ env:
   GOW3_BUILD_TYPE: Release
   # These paths are intentionally outside the checkout and are never uploaded.
   GOW3_ROOTFS: /data/user/0/com.gow3.android/files/rootfs
+  # CI has no game files (no out/eboot.elf), and the CUSA01740 patch addresses are not validated
+  # yet (docs/QUICKSTART.md): stage empty patch parts; patches.py still applies the XML patches on
+  # the device at start.
+  GOW3_SKIP_GAME_PATCH_PARTS: '1'
 
 jobs:
   source-check:
