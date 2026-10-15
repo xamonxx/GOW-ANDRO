@@ -284,3 +284,55 @@ jobs:
             *.apk
             *.apk.sha256
           generate_release_notes: true
+
+  # Every master build as a GitHub release with the APK as a plain asset. An Actions artifact is
+  # always a zip around the APK (itself a zip of ~300 MB), and phone archivers can fail to extract
+  # it ("data error"), leaving a truncated APK that Android cannot parse.
+  publish-build:
+    name: Publish master build
+    if: github.ref == 'refs/heads/master'
+    needs: release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download signed APK
+        uses: actions/download-artifact@v4
+        with:
+          name: gow3-android-arm64-${{ github.sha }}
+          path: artifact
+
+      - name: Name the APK and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk=$(find artifact -maxdepth 1 -type f -name '*.apk' -print)
+          test "$(printf '%s\n' "$apk" | wc -l)" -eq 1 || { echo "Expected one APK, got: $apk" >&2; exit 1; }
+          # Asset names without spaces keep the download URL and the checksum file plain.
+          name="gow3-android-${GITHUB_SHA::7}.apk"
+          mv -- "$apk" "$name"
+          unzip -tq "$name"
+          sha256sum "$name" > "$name.sha256"
+          {
+            echo "APK_NAME=$name"
+            echo "APK_SHA256=$(cut -d' ' -f1 "$name.sha256")"
+            echo "APK_BYTES=$(stat -c %s "$name")"
+          } >> "$GITHUB_ENV"
+
+      - name: Publish the build
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Android build ${{ github.run_number }} (${{ github.sha }})
+          prerelease: true
+          body: |
+            Automatic build of `${{ github.sha }}` on master. Download the `.apk` directly on the
+            phone; no extraction needed. Signed with this run's development key when the signing
+            secrets are not set: uninstall an earlier build before installing.
+
+            - APK: `${{ env.APK_NAME }}` (${{ env.APK_BYTES }} bytes)
+            - SHA-256: `${{ env.APK_SHA256 }}`
+          files: |
+            ${{ env.APK_NAME }}
+            ${{ env.APK_NAME }}.sha256
