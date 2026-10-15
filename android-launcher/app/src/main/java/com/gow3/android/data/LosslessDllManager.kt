@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.compose.runtime.Immutable
 import com.gow3.android.R
 import java.io.File
 
@@ -11,12 +12,14 @@ import java.io.File
 internal enum class LosslessDllSource { GAME_FOLDER, APP_PRIVATE }
 
 /** launcher 当前已安装的内容，每次调用 `resolve()` 时都会从磁盘重新读取。 */
+@Immutable
 internal sealed class LosslessDllState {
     object NotInstalled : LosslessDllState()
     data class Installed(val file: File, val sizeBytes: Long, val source: LosslessDllSource) : LosslessDllState()
 }
 
 /** 一次 `IMPORT .DLL` 尝试的结果。Cancelled 表示用户在文件选择器中退出了。 */
+@Immutable
 internal sealed class ImportResult {
     data class Success(val state: LosslessDllState.Installed) : ImportResult()
     object Cancelled : ImportResult()
@@ -24,6 +27,7 @@ internal sealed class ImportResult {
 }
 
 /** 一次 `REMOVE` 的结果。游戏目录中的副本不会被改动，只会被上报。 */
+@Immutable
 internal sealed class RemoveResult {
     data class Done(val state: LosslessDllState, val gameFolderRemains: Boolean) : RemoveResult()
     data class Failed(val message: String) : RemoveResult()

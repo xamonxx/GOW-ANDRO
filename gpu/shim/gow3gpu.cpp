@@ -20,6 +20,7 @@
 #include <chrono>
 #include <thread>
 #include <vector>
+#include <unordered_map>
 #include <SDL3/SDL.h>
 #include "../gow3gpu.h"
 #include "common/elf_info.h"
@@ -62,6 +63,7 @@ struct Symbol {
     u64 address;
 };
 std::vector<Symbol> g_symbols;
+std::unordered_map<std::string, u64> g_symbol_map;
 u32 g_sdk_version;
 } // namespace
 
@@ -69,6 +71,7 @@ namespace Core::Loader {
 void SymbolsResolver::AddSymbol(const char* nid, const char* library, const char* module, SymbolType,
                                 u64 address) {
     g_symbols.push_back({nid, library, module, address});
+    g_symbol_map[g_symbols.back().nid] = address;
 }
 } // namespace Core::Loader
 
@@ -275,12 +278,8 @@ extern "C" void gow3gpu_register_kernel(void) {
 extern "C" uintptr_t gow3gpu_resolve(const char* scoped_nid) {
     const char* hash = std::strchr(scoped_nid, '#');
     const size_t length = hash ? size_t(hash - scoped_nid) : std::strlen(scoped_nid);
-    for (const auto& symbol : g_symbols) {
-        if (symbol.nid.size() == length && !std::memcmp(symbol.nid.data(), scoped_nid, length)) {
-            return uintptr_t(symbol.address);
-        }
-    }
-    return 0;
+    auto it = g_symbol_map.find(std::string(scoped_nid, length));
+    return it != g_symbol_map.end() ? uintptr_t(it->second) : 0;
 }
 
 extern "C" int gow3gpu_handle_fault(void* ucontext, void* address) {

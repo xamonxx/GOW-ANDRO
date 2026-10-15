@@ -94,7 +94,8 @@
     {"path": "gow3port/scripts/save_backup.py", "type": "data"},
     {"path": "gow3port/patches/God_of_War_III_Remastered.xml", "type": "data"},
     {"path": "gow3port/gow3-fex-compatible.json", "type": "data"},
-    {"path": "gow3port/gow3.default.ini", "type": "data"}
+    {"path": "gow3port/gow3.default.ini", "type": "data"},
+    {"path": "gow3port/gow3.iqoo15r.ini", "type": "data"}
   ],
   "environment": {
     "FXD_FILES": "{files_dir}",

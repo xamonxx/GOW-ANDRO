@@ -21,11 +21,26 @@ export TMPDIR="$host/tmp" XDG_RUNTIME_DIR="$host/tmp"
 # lib/ next to the probe holds libgow3gpu/libgow3cpu and the libraries the rootfs lacks.
 export LD_LIBRARY_PATH="$arch/lib:$host/usr/lib/aarch64-linux-gnu:$host/usr/lib/aarch64-linux-gnu/pulseaudio:$host/usr/lib"
 
+# The Adreno chip id KGSL reports (0x44... on Adreno 8xx) picks the Turnip build below.
+chip_id=$("$loader" "$arch/bin/kgsl-chip-id" 2>/dev/null || true)
+# Bionic's getprop must not see the rootfs (glibc) libraries.
+prop() { LD_LIBRARY_PATH= /system/bin/getprop "$1" 2>/dev/null || true; }
+# A device profile (gow3.<profile>.ini) seeds gow3.ini on the first launch; GOW3_DEVICE_PROFILE
+# overrides the detection. iQOO 15R: Snapdragon 8 Gen 5 (SM8845), Adreno 829.
+device_profile=${GOW3_DEVICE_PROFILE:-}
+if [ -z "$device_profile" ]; then
+    case $(printf '%s %s %s' "$(prop ro.vivo.market.name)" "$(prop ro.product.marketname)" \
+            "$(prop ro.product.model)" | tr 'A-Z' 'a-z') in
+        *iqoo*15r*|*iqoo*15\ r*) device_profile=iqoo15r ;;
+    esac
+fi
+echo "Device: $(prop ro.product.manufacturer) $(prop ro.product.model) ($(prop ro.soc.model)), chip ${chip_id:-unknown}, profile ${device_profile:-default}"
+
 # Turnip: Mesa main for Adreno 6xx/7xx, the turnip/gen8 build on Adreno 8xx (0x44..., e.g. the
-# 8 Elite's 830). GOW3_TURNIP=main|gen8 overrides the choice.
+# 8 Elite's 830, the 8 Gen 5's 829). GOW3_TURNIP=main|gen8 overrides the choice.
 turnip=${GOW3_TURNIP:-}
 if [ -z "$turnip" ]; then
-    case $("$loader" "$arch/bin/kgsl-chip-id" 2>/dev/null || true) in
+    case $chip_id in
         0x44*) turnip=gen8 ;;
         *) turnip=main ;;
     esac
@@ -41,7 +56,14 @@ export VK_ICD_FILENAMES="$VK_DRIVER_FILES"
 export GLIBC_TUNABLES='glibc.cpu.hwcaps=-AVX2,-AVX,-AVX_Fast_Unaligned_Load,-AVX2_Usable,-AVX_Usable'
 
 export GOW3_CONFIG="$base/gow3.ini"
-[ -f "$GOW3_CONFIG" ] || cp "$base/gow3.default.ini" "$GOW3_CONFIG"
+# First launch only: the device profile when there is one, else the defaults. An existing
+# gow3.ini holds the player's settings and is never replaced.
+if [ ! -f "$GOW3_CONFIG" ]; then
+    seed="$base/gow3.default.ini"
+    [ -n "$device_profile" ] && [ -f "$base/gow3.$device_profile.ini" ] && seed="$base/gow3.$device_profile.ini"
+    cp "$seed" "$GOW3_CONFIG"
+    echo "Config: first launch, gow3.ini from ${seed##*/}"
+fi
 # One setting from gow3.ini, last value wins (the launcher writes whole-file on changes).
 setting() { sed -n "s/^$1=//p" "$GOW3_CONFIG" 2>/dev/null | tail -n 1; }
 
@@ -131,7 +153,8 @@ if [ "${GOW3_ANDROID_INPUT:-0}" = 1 ]; then
     fi
 fi
 
-export SDL_VIDEODRIVER=x11 DISPLAY=:0
+# The launcher's Xvfb is not always on :0 (another app's X server can hold it).
+export SDL_VIDEODRIVER=x11 DISPLAY=${GOW3_DISPLAY:-:0}
 export MESA_VK_WSI_DEBUG=sw MESA_VK_WSI_PRESENT_MODE=relaxed
 # The display bridge hands frames over directly through this socket (the ordinary X11 path can
 # show black on Android).

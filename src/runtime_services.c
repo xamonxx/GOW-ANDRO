@@ -388,7 +388,7 @@ static void utf8_to_utf16(const char *in, uint16_t *out, uint32_t max) {
         if (c>=0x10000) { if (n+2>max) break; c-=0x10000; out[n++]=(uint16_t)(0xD800+(c>>10)); out[n++]=(uint16_t)(0xDC00+(c&1023)); }
         else out[n++]=(uint16_t)c;
     }
-    out[n<max ? n : max]=0;
+    if (n<max) out[n]=0; else if (max>0) out[max-1]=0;
 }
 static void ime_complete(int end_status, const char *text) {
     if (!end_status && ime.buffer && ime.max_length) utf8_to_utf16(text,ime.buffer,ime.max_length);

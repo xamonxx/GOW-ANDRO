@@ -1,5 +1,6 @@
 package com.gow3.android.data
 
+import androidx.compose.runtime.Immutable
 import com.gow3.android.R
 
 /**
@@ -9,6 +10,7 @@ import com.gow3.android.R
  * 显示标签、分组与说明使用字符串资源 id（labelRes / groupRes / descriptionRes），
  * 由 UI 层通过 Context 解析，数据层保持纯 JVM 结构、不依赖 Android。
  */
+@Immutable
 internal data class LaunchParam(
     val key: String,
     val labelRes: Int,
@@ -18,6 +20,7 @@ internal data class LaunchParam(
     val descriptionRes: Int? = null,
 )
 
+@Immutable
 internal data class LaunchOption(val value: String, val labelRes: Int)
 
 /**

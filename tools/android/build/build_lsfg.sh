@@ -41,7 +41,7 @@ for patch in "${patches[@]}"; do
         die "patch does not apply: $patch"
     git -C "$src" apply --whitespace=nowarn "$PWD/$patch"
 done
-rm -rf "$build" "$out"
+# CMake handles incrementality; build dir is preserved across runs.
 cmake -S "$src" -B "$build" -G Ninja -DCMAKE_TOOLCHAIN_FILE="$PWD/tools/android/build/aarch64-toolchain.cmake" \
     -DCMAKE_BUILD_TYPE=Release > "$build.log" 2>&1 || { tail -30 "$build.log" >&2; exit 1; }
 ninja -C "$build" lsfg-vk >> "$build.log" 2>&1 || { grep -v '^\[' "$build.log" | tail -40 >&2; exit 1; }

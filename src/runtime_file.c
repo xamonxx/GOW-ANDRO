@@ -264,16 +264,21 @@ static int64_t do_close(int fd) {
     pthread_mutex_lock(&lock);
     File *f=get(fd);
     if (!f) { pthread_mutex_unlock(&lock); return -EBADF; }
-    if (f->host>=0) close(f->host);
-    free_listing(f->dir);
+    int h=f->host;
+    Listing *dir=f->dir;
     *f=(File){0};
     pthread_mutex_unlock(&lock);
+    if (h>=0) close(h);
+    free_listing(dir);
     return 0;
 }
 static int host_fd(int fd) {
     if (fd>=0 && fd<3) return fd;
+    pthread_mutex_lock(&lock);
     File *f=get(fd);
-    return f ? f->host : -1;
+    int h=f ? f->host : -1;
+    pthread_mutex_unlock(&lock);
+    return h;
 }
 #ifdef _WIN32
 /* The CRT reads and writes at most INT_MAX bytes per call. */

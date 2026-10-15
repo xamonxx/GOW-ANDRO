@@ -3,7 +3,7 @@ name: android
 on:
   pull_request:
   push:
-    branches: [main, gow3]
+    branches: [main, gow3, master]
     tags: ['v*']
   workflow_dispatch:
 
@@ -147,13 +147,21 @@ jobs:
         shell: bash
         run: |
           set +x
+          # Without the signing secrets (a fork, a new repository) build_release_apk.sh signs with
+          # a development key generated for this run: installable for testing, but each run's key
+          # differs, so updating an install needs an uninstall first.
+          missing=0
           for name in ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD ANDROID_KEYSTORE_BASE64; do
             if [[ -z ${!name:-} ]]; then
-              echo "Missing required GitHub secret: $name" >&2
-              exit 1
+              missing=1
+            else
+              printf '::add-mask::%s\n' "${!name}"
             fi
-            printf '::add-mask::%s\n' "${!name}"
           done
+          if [[ $missing = 1 ]]; then
+            echo '::warning::Android signing secrets are not set; the APK is signed with a development key.'
+            exit 0
+          fi
           bash tools/android/prepare_signing.sh "$GOW3_KEYSTORE"
 
       - name: Download and prepare fexdroid rootfs

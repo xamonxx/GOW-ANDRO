@@ -268,7 +268,12 @@ static ABI int32_t save_search(const SearchCond *cond, SearchResult *result) {
         size_t n=strlen(e->d_name);
         if (e->d_name[0]=='.' || n>=32 || (n>8 && !strcmp(e->d_name+n-8,".sce_sys"))) continue;
         if (cond->dir && cond->dir->data[0] && !like(e->d_name,cond->dir->data)) continue;
-        if (count==capacity) { capacity=capacity ? capacity*2 : 16; entries=realloc(entries,capacity*sizeof(*entries)); }
+        if (count==capacity) {
+            size_t nc=capacity ? capacity*2 : 16;
+            Entry *tmp=realloc(entries,nc*sizeof(*entries));
+            if (!tmp) { free(entries); if (d) closedir(d); return ERR_INTERNAL; }
+            entries=tmp; capacity=nc;
+        }
         snprintf(entries[count].name,32,"%s",e->d_name);
         char meta[680]; snprintf(meta,sizeof(meta),"%s/%s.sce_sys",base,e->d_name);
         read_param(meta,&entries[count].param);
@@ -318,7 +323,7 @@ static int32_t memory_io(void *buffer, uint64_t size, int64_t offset, int write)
     if (!buffer || offset<0) return ERR_PARAMETER;
     pthread_mutex_lock(&lock);
     if (!memory_size) { pthread_mutex_unlock(&lock); return ERR_MEMORY_NOT_READY; }
-    if ((uint64_t)offset+size>memory_size) { pthread_mutex_unlock(&lock); return ERR_PARAMETER; }
+    if (size > memory_size || (uint64_t)offset > memory_size - size) { pthread_mutex_unlock(&lock); return ERR_PARAMETER; }
     FILE *f=fopen(memory_path,"r+b");
     int32_t r=ERR_INTERNAL;
     if (f && !fseek(f,offset,SEEK_SET) &&

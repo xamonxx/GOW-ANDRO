@@ -5,6 +5,7 @@ import android.content.SharedPreferences;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.PointF;
+import android.graphics.Rect;
 import android.graphics.Typeface;
 import android.util.SparseArray;
 import android.view.MotionEvent;
@@ -34,11 +35,32 @@ final class TouchControllerOverlay extends View {
     private final SparseArray<String> controls=new SparseArray<>();
     private final SparseArray<PointF> positions=new SparseArray<>();
     private final Set<String> pressed=new LinkedHashSet<>();
+    private final Set<String> prevPressed=new LinkedHashSet<>();
+    private int prevLx=128,prevLy=128,prevRx=128,prevRy=128;
+    private int prevL2=0,prevR2=0;
+    private boolean prevLeft=false,prevRight=false;
     private boolean mouseDown,editing;
     private final boolean mouseEnabled;
     private int editPointer=-1;
     private String dragged;
     private Runnable onEditDone;
+
+    // Bounding rects (in layout coords 1280x720) for each button type
+    private static Rect getBoundingRect(String name,PointF center) {
+        int l=-60,t=-60,r=60,b=60; // defaults for circles
+        if (name.equals("l2") || name.equals("l1") || name.equals("r1") || name.equals("r2")) {
+            l=-54; t=-25; r=54; b=25; // rectangles 108x50
+        } else if (name.equals("touchpad") || name.equals("options")) {
+            l=-63; t=-25; r=63; b=25; // rectangles 126x50
+        } else if (name.equals("leftstick") || name.equals("rightstick")) {
+            l=-60; t=-60; r=60; b=60; // circles 114 diameter + knob movement
+        } else if (name.equals("l3") || name.equals("r3")) {
+            l=-35; t=-35; r=35; b=35; // circles 70 diameter
+        }
+        // d-pad and face buttons: circles with r=39
+        int x=(int)center.x, y=(int)center.y;
+        return new Rect(x+l,y+t,x+r,y+b);
+    }
 
     TouchControllerOverlay(Context context,PadBridge pad,boolean mouseEnabled) {
         super(context); this.pad=pad; this.mouseEnabled=mouseEnabled;
@@ -118,7 +140,50 @@ final class TouchControllerOverlay extends View {
         }
         if (mouse!=mouseDown) { XInput.button(1,mouse); mouseDown=mouse; }
         pad.virtual(pressed,lx,ly,rx,ry,left,right,l2,r2);
-        invalidate();
+        
+        // Dirty-rect invalidation: only invalidate changed buttons
+        boolean pressed_changed=!pressed.equals(prevPressed);
+        boolean sticks_changed=(lx!=prevLx) || (ly!=prevLy) || (rx!=prevRx) || (ry!=prevRy);
+        boolean triggers_changed=(l2!=prevL2) || (r2!=prevR2);
+        boolean stick_states_changed=left!=prevLeft || right!=prevRight;
+        
+        if (pressed_changed || sticks_changed || triggers_changed || stick_states_changed) {
+            // Invalidate buttons that changed state
+            for (String name:pressed) {
+                if (!prevPressed.contains(name)) invalidateDirtyRect(name);
+            }
+            for (String name:prevPressed) {
+                if (!pressed.contains(name)) invalidateDirtyRect(name);
+            }
+            // Invalidate sticks if their position changed
+            if (sticks_changed) {
+                invalidateDirtyRect("leftstick");
+                invalidateDirtyRect("rightstick");
+            }
+            // Invalidate triggers if their values changed
+            if (triggers_changed) {
+                invalidateDirtyRect("l2");
+                invalidateDirtyRect("r2");
+            }
+            // Update previous state
+            prevPressed.clear(); prevPressed.addAll(pressed);
+            prevLx=lx; prevLy=ly; prevRx=rx; prevRy=ry;
+            prevL2=l2; prevR2=r2;
+            prevLeft=left; prevRight=right;
+        }
+    }
+    
+    private void invalidateDirtyRect(String name) {
+        PointF center=center(name);
+        if (center==null) { invalidate(); return; } // d-pad directions share the dpad control
+        Rect rect=getBoundingRect(name,center);
+        // Scale and translate from layout coords to screen coords
+        float scale=scale(), offsetX=offsetX(), offsetY=offsetY();
+        int left=(int)(rect.left*scale+offsetX);
+        int top=(int)(rect.top*scale+offsetY);
+        int right=(int)(rect.right*scale+offsetX+1);
+        int bottom=(int)(rect.bottom*scale+offsetY+1);
+        invalidate(left,top,right,bottom);
     }
     void release() { controls.clear(); positions.clear(); publish(); }
     void edit(Runnable done) { release(); editing=true; onEditDone=done; invalidate(); }

@@ -78,11 +78,17 @@ static ABI int32_t posix_clock_getres(uint32_t id,GuestTimespec *ts) {
 }
 static ABI uint64_t process_time(void) {
     struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t);
-    return (uint64_t)(t.tv_sec-process_start.tv_sec)*1000000+(uint64_t)((t.tv_nsec-process_start.tv_nsec)/1000);
+    int64_t ds = t.tv_sec - process_start.tv_sec;
+    int64_t dn = t.tv_nsec - process_start.tv_nsec;
+    if (dn < 0) { ds--; dn += 1000000000; }
+    return (uint64_t)ds * 1000000 + (uint64_t)(dn / 1000);
 }
 static ABI uint64_t process_time_counter(void) {
     struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t);
-    return (uint64_t)(t.tv_sec-process_start.tv_sec)*1000000000+(uint64_t)(t.tv_nsec-process_start.tv_nsec);
+    int64_t ds = t.tv_sec - process_start.tv_sec;
+    int64_t dn = t.tv_nsec - process_start.tv_nsec;
+    if (dn < 0) { ds--; dn += 1000000000; }
+    return (uint64_t)ds * 1000000000 + (uint64_t)dn;
 }
 static ABI uint64_t process_time_frequency(void) { return 1000000000; }
 /* RDTSC goes through the boundary: the host's counter on x86-64 hosts, the guest CPU's own on the

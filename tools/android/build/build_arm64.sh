@@ -171,6 +171,13 @@ end_stage "libgow3gpu.so"
 
 # ---- 3/4 gow3-probe (the loader) --------------------------------------------
 cc=(clang --target=aarch64-linux-gnu --sysroot="$sysroot" -fuse-ld=lld)
+# ARM64 ISA tuning: GOW3_ARM64_CPU takes precedence (SD8 Gen 5 is Oryon V3, not Cortex-X925: keep the default),
+# otherwise GOW3_ARM64_ARCH sets -march (default armv8.2-a for broad compat).
+if [[ -n ${GOW3_ARM64_CPU:-} ]]; then
+    cc+=("-mcpu=$GOW3_ARM64_CPU")
+elif [[ -n ${GOW3_ARM64_ARCH:-} ]]; then
+    cc+=("-march=$GOW3_ARM64_ARCH")
+fi
 export PKG_CONFIG_SYSROOT_DIR=$sysroot
 export PKG_CONFIG_LIBDIR=$sysroot/usr/lib/aarch64-linux-gnu/pkgconfig:$sysroot/usr/share/pkgconfig
 # See aarch64-toolchain.cmake: keep pkgconf's --define-prefix off so the sysroot is applied once.
@@ -180,19 +187,21 @@ read -r -a includes <<< "$(pkg-config --cflags vulkan sdl3 libavcodec libavutil 
 read -r -a libraries <<< "$(pkg-config --libs vulkan sdl3 libavcodec libavutil libswscale)"
 
 begin "LibAtrac9 (third-party decoders)"
-mkdir -p "$out/atrac9"
 atrac9_sources=(third_party/LibAtrac9/C/src/*.c)
-atrac9_total=${#atrac9_sources[@]}
-n=0
-for source in "${atrac9_sources[@]}"; do
-    n=$((n + 1))
-    live "atrac9 $n/$atrac9_total  $(basename "$source")"
-    "${cc[@]}" -std=c99 -O2 -w -c "$source" -o "$out/atrac9/$(basename "${source%.c}").o"
-done
-live_end
-archiver=${GOW3_AR:-$(command -v llvm-ar || true)}
-[[ -n $archiver ]] || { echo "No LLVM archiver (set GOW3_AR)" >&2; exit 1; }
-"$archiver" rcs "$out/libatrac9.a" "$out"/atrac9/*.o
+if [[ ! -f "$out/libatrac9.a" || -n $(find third_party/LibAtrac9/C/src -newer "$out/libatrac9.a" -name '*.c') ]]; then
+    mkdir -p "$out/atrac9"
+    atrac9_total=${#atrac9_sources[@]}
+    n=0
+    for source in "${atrac9_sources[@]}"; do
+        n=$((n + 1))
+        live "atrac9 $n/$atrac9_total  $(basename "$source")"
+        "${cc[@]}" -std=c99 -O2 -w -c "$source" -o "$out/atrac9/$(basename "${source%.c}").o"
+    done
+    live_end
+    archiver=${GOW3_AR:-$(command -v llvm-ar || true)}
+    [[ -n $archiver ]] || { echo "No LLVM archiver (set GOW3_AR)" >&2; exit 1; }
+    "$archiver" rcs "$out/libatrac9.a" "$out"/atrac9/*.o
+fi
 end_stage "libatrac9.a"
 
 # ---- 4/4 gow3-probe (the loader) --------------------------------------------

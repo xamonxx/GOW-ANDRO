@@ -1,0 +1,5 @@
+# Shell scripts, gow3.ini profiles and Mesa/LSFG patches run or are applied on Linux/Android, where
+# CRLF breaks them (sh reads "\r" into commands, sed into setting values, git apply rejects hunks).
+*.sh text eol=lf
+*.ini text eol=lf
+*.patch text eol=lf

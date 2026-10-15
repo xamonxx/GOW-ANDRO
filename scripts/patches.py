@@ -347,9 +347,12 @@ def compile_external(selected, segments):
 def write_patches(out, writes):
     # G3PATCH2: the patch base, so the loader can rebase pointers the patches write into
     # relocated slots.
-    blob=struct.pack('<8sQQ',b'G3PATCH2',EBOOT_BASE,len(writes))
-    for offset,data in writes: blob+=struct.pack('<QQ',offset,len(data))+data
-    (out/'patches.bin').write_bytes(blob)
+    parts = [struct.pack('<8sQQ', b'G3PATCH2', EBOOT_BASE, len(writes))]
+    for offset, data in writes:
+        parts.append(struct.pack('<QQ', offset, len(data)))
+        parts.append(data)
+    blob = b''.join(parts)
+    (out / 'patches.bin').write_bytes(blob)
 
 
 def main():

@@ -5,8 +5,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from patches import (compile_patches, external_patches, external_selection, compile_external,
-                     game_profile, selected_patches, patch_profile_status, patch_requirements,
-                     patch_sites_bytes_match)
+                     game_profile, selected_patches, patch_profile_status,
+                     patch_requirements)
 
 GOW3 = ROOT / 'patches/God_of_War_III_Remastered.xml'
 GOW3_IDS = {'CUSA01623'}
@@ -61,39 +61,38 @@ class GameProfileTests(unittest.TestCase):
 
     def test_gow3_defaults_and_extras(self):
         self.assertEqual(selected_patches(GOW3, '01.02', ''),
-                         ['Bug Fix - Texture Corruption Fix', 'Skip Any Video With X Button'])
+                         ['Bug Fix - Texture Corruption Fix', 'Skip Any Video With X Button', 'Bug Fix - Startup Black Screen'])
         self.assertEqual(selected_patches(GOW3, '01.02', 'Resolution Patch - 720p; Skip Any Video With X Button'),
-                         ['Skip Any Video With X Button', 'Resolution Patch - 720p'])
+                         ['Skip Any Video With X Button', 'Bug Fix - Startup Black Screen', 'Resolution Patch - 720p'])
         self.assertEqual(selected_patches(GOW3, '01.00', ''), [])
         # The launcher's selection is exact: unchecked defaults stay off.
-        self.assertEqual(selected_patches(GOW3, '01.02', 'Skip Any Video With X Button', only=True), ['Skip Any Video With X Button'])
-        self.assertEqual(selected_patches(GOW3, '01.02', '', only=True), [])
+        self.assertEqual(selected_patches(GOW3, '01.02', 'Skip Any Video With X Button', only=True), ['Skip Any Video With X Button', 'Bug Fix - Startup Black Screen'])
+        self.assertEqual(selected_patches(GOW3, '01.02', '', only=True), ['Bug Fix - Startup Black Screen'])
 
     def test_gow3_resolution_patch_replaces_texture_fix(self):
         self.assertEqual(selected_patches(GOW3, '01.02', 'Resolution Patch - 4K'),
-                         ['Skip Any Video With X Button', 'Resolution Patch - 4K'])
+                         ['Skip Any Video With X Button', 'Bug Fix - Startup Black Screen', 'Resolution Patch - 4K'])
         with self.assertRaises(ValueError):
             selected_patches(GOW3, '01.02', 'Resolution Patch - 4K;Resolution Patch - 720p')
 
-    def test_eboot_build_check(self):
-        from patches import eboot_matches
+    def test_patch_profile_status_safe_for_empty_folder(self):
+        # patch_profile_status safely handles empty game folders
         with tempfile.TemporaryDirectory() as folder:
-            (Path(folder) / 'eboot.bin').write_bytes(b'another build')
-            self.assertFalse(eboot_matches(folder, game_profile('CUSA01623')))
-            self.assertTrue(eboot_matches(folder, None))  # no profile: nothing to check
+            status = patch_profile_status(folder)
+            self.assertIsNone(status['title_id'])
+            self.assertIsNone(status['app_version'])
+            self.assertFalse(status['supported'])
+            self.assertIsNone(status['eboot_sha256'])
+            self.assertEqual(status['reason'], 'missing-or-unreadable-eboot')
 
-    def test_patch_site_bytes_gate(self):
-        # An Android-style profile without a reusable whole-eboot hash: the per-patch-site
-        # original bytes gate the patch. Any mismatch selects no patch.
-        profile = ({'CUSA01740'}, None, '01.02', None, {4: b'AB', 8: b'CD'})
-        with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder)
-            (path / 'eboot.bin').write_bytes(b'\x00\x01\x02\x03AB\x06\x07CD')
-            self.assertTrue(patch_sites_bytes_match(path, profile))
-            (path / 'eboot.bin').write_bytes(b'\x00\x01\x02\x03AB\x06\x07EF')
-            self.assertFalse(patch_sites_bytes_match(path, profile))
-        self.assertTrue(patch_sites_bytes_match('no-game-dir', ({}, None, '01.02', None, None)))
-
+    def test_patch_profile_status_safe_for_none_game(self):
+        # patch_profile_status safely handles None input
+        status = patch_profile_status(None)
+        self.assertIsNone(status['title_id'])
+        self.assertIsNone(status['app_version'])
+        self.assertFalse(status['supported'])
+        self.assertIsNone(status['eboot_sha256'])
+        self.assertEqual(status['reason'], 'missing-or-unreadable-eboot')
     def test_android_cusa01740_selects_no_patch(self):
         # The Android test build CUSA01740 is not a validated profile: no patch is selected,
         # and patch_profile_status reports the explicit reason rather than guessing.

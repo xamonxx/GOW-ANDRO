@@ -139,6 +139,13 @@ else
     c_entry="['clang', '--target=aarch64-linux-gnu', '--sysroot=$sysroot']"
     cpp_entry="['clang++', '--target=aarch64-linux-gnu', '--sysroot=$sysroot']"
 fi
+# ARM64 ISA tuning: GOW3_ARM64_CPU (an exact -mcpu) or GOW3_ARM64_ARCH added to compile flags.
+arch_flag=
+if [[ -n ${GOW3_ARM64_CPU:-} ]]; then
+    arch_flag=", '-mcpu=${GOW3_ARM64_CPU}'"
+elif [[ -n ${GOW3_ARM64_ARCH:-} ]]; then
+    arch_flag=", '-march=${GOW3_ARM64_ARCH}'"
+fi
 cat > "$cross" <<EOF
 [binaries]
 c = $c_entry
@@ -149,8 +156,8 @@ ar = 'llvm-ar'
 strip = 'llvm-strip'
 pkg-config = 'pkg-config'
 [built-in options]
-c_args = ['-O2']
-cpp_args = ['-O2']
+c_args = ['-O2'$arch_flag]
+cpp_args = ['-O2'$arch_flag]
 [properties]
 sys_root = '$sysroot'
 pkg_config_libdir = ['$sysroot/usr/lib/aarch64-linux-gnu/pkgconfig', '$sysroot/usr/share/pkgconfig']
@@ -160,9 +167,11 @@ cpu_family = 'aarch64'
 cpu = 'aarch64'
 endian = 'little'
 EOF
-rm -rf "$build" "$out"
+# Meson handles incrementality; build dir is preserved across runs.
+reconfigure=()
+[[ -d "$build" ]] && reconfigure=(--reconfigure)
 begin "meson setup"
-meson setup "$build" "$src" --cross-file "$cross" --prefix="$rootfs/usr" \
+meson setup "${reconfigure[@]}" "$build" "$src" --cross-file "$cross" --prefix="$rootfs/usr" \
     --libdir=lib/aarch64-linux-gnu --wrap-mode=nofallback --buildtype=release -Db_ndebug=true \
     -Dplatforms=x11 -Dvulkan-drivers=freedreno -Dfreedreno-kmds=kgsl -Dgallium-drivers= \
     -Dopengl=false -Degl=disabled -Dgles1=disabled -Dgles2=disabled -Dglx=disabled -Dgbm=disabled \

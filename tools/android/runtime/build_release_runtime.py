@@ -303,6 +303,7 @@ def main():
             ('tools/android/config/gow3-fex-compatible.json', 'gow3-fex-compatible.json'),
             ('tools/android/config/gow3-gamecontrollerdb.txt', 'gow3-gamecontrollerdb.txt'),
             ('tools/android/config/gow3-default.ini', 'gow3.default.ini'),
+            ('tools/android/config/gow3-iqoo15r.ini', 'gow3.iqoo15r.ini'),
         ):
             tar.add(ROOT / source, arcname='gow3port/' + name)
         tar.add(manifest_path, arcname='runtime-manifest.json',

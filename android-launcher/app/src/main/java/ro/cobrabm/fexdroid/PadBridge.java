@@ -88,7 +88,7 @@ final class PadBridge {
         virtualLx=leftX; virtualLy=leftY; virtualRx=rightX; virtualRy=rightY;
         virtualLeftActive=leftActive; virtualRightActive=rightActive;
         virtualL2=leftTrigger; virtualR2=rightTrigger;
-        write();
+        if (!queued) { queued=true; handler.postDelayed(() -> { queued=false; write(); },8); }
     }
 
     void reset() {
@@ -98,17 +98,19 @@ final class PadBridge {
         write();
     }
 
+    private final StringBuilder writeBuffer = new StringBuilder(256);
+
     private void write() {
-        StringBuilder text=new StringBuilder();
+        writeBuffer.setLength(0);
         Set<String> all=new LinkedHashSet<>(keys); all.addAll(virtualKeys);
         int leftTrigger=Math.max(l2,virtualL2), rightTrigger=Math.max(r2,virtualR2);
         for (String key:all) {
             if ((key.equals("l2") && leftTrigger>0) || (key.equals("r2") && rightTrigger>0)) continue;
-            text.append(key).append(' ');
+            writeBuffer.append(key).append(' ');
         }
-        if (hatX<0) text.append("left "); if (hatX>0) text.append("right ");
-        if (hatY<0) text.append("up "); if (hatY>0) text.append("down ");
-        text.append("lx=").append(virtualLeftActive ? virtualLx : lx)
+        if (hatX<0) writeBuffer.append("left "); if (hatX>0) writeBuffer.append("right ");
+        if (hatY<0) writeBuffer.append("up "); if (hatY>0) writeBuffer.append("down ");
+        writeBuffer.append("lx=").append(virtualLeftActive ? virtualLx : lx)
             .append(" ly=").append(virtualLeftActive ? virtualLy : ly)
             .append(" rx=").append(virtualRightActive ? virtualRx : rx)
             .append(" ry=").append(virtualRightActive ? virtualRy : ry)
@@ -117,7 +119,7 @@ final class PadBridge {
         try {
             state.getParentFile().mkdirs();
             try (FileOutputStream out=new FileOutputStream(temp)) {
-                out.write(text.toString().getBytes(StandardCharsets.US_ASCII));
+                out.write(writeBuffer.toString().getBytes(StandardCharsets.US_ASCII));
             }
             if (!temp.renameTo(state)) throw new java.io.IOException("Cannot publish controller state");
         } catch (java.io.IOException ex) { android.util.Log.e("God of War III", "Controller bridge",ex); }

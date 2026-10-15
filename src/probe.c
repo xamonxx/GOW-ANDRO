@@ -787,12 +787,21 @@ int main(int argc, char **argv) {
         t[8] = 0x48; t[9] = 0xb8; memcpy(t + 10, &handler, 8);
         t[18] = 0xff; t[19] = 0xe0;
     }
+    /* Import resolution cache: avoid repeating string comparisons across runtime modules. */
+    uintptr_t *import_resolved = calloc(import_count > 0 ? import_count * 2 : 1, sizeof(uintptr_t));
+    int8_t *import_tried = calloc(import_count > 0 ? import_count * 2 : 1, sizeof(int8_t));
+    if (!import_resolved || !import_tried) fail("allocation failed");
     for (uint64_t i = 0; i < nr; ++i) {
         uintptr_t value = relocs[i].kind == 2 ? (uintptr_t)(data_traps + page_size * relocs[i].value + relocs[i].addend)
                         : relocs[i].kind == 1 ? (uintptr_t)(traps + 32 * relocs[i].value)
                         : (uintptr_t)image + relocs[i].value;
         if (relocs[i].kind) {
-            uintptr_t resolved = runtime_resolve(names[relocs[i].value], relocs[i].kind == 2);
+            uint64_t cache_idx = relocs[i].value * 2 + (relocs[i].kind == 2 ? 1 : 0);
+            if (!import_tried[cache_idx]) {
+                import_resolved[cache_idx] = runtime_resolve(names[relocs[i].value], relocs[i].kind == 2);
+                import_tried[cache_idx] = 1;
+            }
+            uintptr_t resolved = import_resolved[cache_idx];
             /* Host functions handed to the guest are wrapped: the guest calls them in its own
              * convention, the boundary converts (a plain cast on x86-64 hosts). */
             if (resolved && relocs[i].kind == 1) value = guest_cpu_host_function((void *)resolved);
@@ -805,6 +814,8 @@ int main(int argc, char **argv) {
         }
         memcpy(image + relocs[i].target, &value, 8);
     }
+    free(import_resolved);
+    free(import_tried);
     if (check_imports) {
         /* Lists every import the game would stop at, without running it (needs the GPU
          * library: without --cpu-only its symbols are registered above). */

@@ -10,6 +10,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.text.InputFilter;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -30,10 +31,17 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -62,8 +70,14 @@ public final class GameActivity extends Activity {
     private TouchControllerOverlay controllerOverlay;
     private PadBridge pad;
     private AudioBridge audio;
+    private Map<String,String> iniCache;
+    private long iniCacheModified;
     private volatile Process xvfb, game;
     private volatile int shmid=-1;
+    /** The X display Xvfb listens on (startXvfb): not always :0, since X servers also bind the
+     *  abstract socket "@/tmp/.X11-unix/X<n>" that every app on the device shares. */
+    private volatile int xdisplay;
+    private static final int MAX_DISPLAY=9, XVFB_TIMEOUT_S=30;
     private volatile boolean destroyed;
     /** run-gow3.sh 报告 LSFG 运行时失败并自动回退后置位：刷新率要退回「无 LSFG」的目标，避免
      *  停在 LSFG 倍率对应的高刷新率上空跑（4.1 复评）。 */
@@ -453,7 +467,8 @@ public final class GameActivity extends Activity {
         if ("close-menu".equals(action)) closeDrawer();
     }
 
-    private Process process(String... args) throws java.io.IOException {
+    private Process process(String... args) throws java.io.IOException { return builder(args).start(); }
+    private ProcessBuilder builder(String... args) {
         ProcessBuilder b=new ProcessBuilder(args).redirectErrorStream(true);
         Map<String,String> env=b.environment(); env.clear();
         String target=args.length>1 && args[0].equals(ROOT+"/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1") ? args[1] : args[0];
@@ -469,10 +484,131 @@ public final class GameActivity extends Activity {
         if (updateDir!=null) env.put("GOW3_PATCH_DIR",updateDir);
         if (target.endsWith("/Xvfb")) env.put("LD_PRELOAD",ROOT+"/usr/lib/fexdroid/libfxpath.so");
         env.put("LIBGL_DRIVERS_PATH",ROOT+"/usr/lib/aarch64-linux-gnu/dri");
-        return b.start();
+        // The display Xvfb got (startX): run-gow3.sh exports it as DISPLAY.
+        env.put("GOW3_DISPLAY",":"+xdisplay);
+        return b;
+    }
+    private static long pageSize() {
+        try { return android.system.Os.sysconf(android.system.OsConstants._SC_PAGESIZE); }
+        catch (Throwable ex) { return 4096; }
+    }
+    /** Kills this app's runtime processes an earlier session left running (the app process died
+     *  without onDestroy, its Xvfb and game kept going): they hold the X display. fxshmd stays, it
+     *  is shared and reused. */
+    private void killStaleRuntime() {
+        File[] entries=new File("/proc").listFiles();
+        if (entries==null) return;
+        int self=android.os.Process.myPid(), uid=android.os.Process.myUid();
+        ArrayList<File> killed=new ArrayList<>();
+        for (File entry : entries) {
+            int pid;
+            try { pid=Integer.parseInt(entry.getName()); } catch (NumberFormatException ex) { continue; }
+            if (pid==self) continue;
+            try {
+                if (android.system.Os.stat(entry.getPath()).st_uid!=uid) continue;
+                String cmd=new String(Files.readAllBytes(new File(entry,"cmdline").toPath()),StandardCharsets.UTF_8)
+                    .replace('\0',' ').trim();
+                if (!cmd.contains(FILES+"/") || cmd.contains("/fxshmd")) continue;
+                android.util.Log.w("God of War III","Stopping a runtime process of an earlier session: "+pid+" "+cmd);
+                android.os.Process.killProcess(pid);
+                killed.add(entry);
+            } catch (Exception ignored) {}
+        }
+        for (int i=0; i<30 && killed.stream().anyMatch(File::exists); i++) SystemClock.sleep(100);
+    }
+    /** fxshmd, the SysV shared memory of Xvfb's frame and the display bridge. Its first process
+     *  exits once the socket listens (the daemon stays); one already running is reused. */
+    private void startShm() throws Exception {
+        File log=new File(BASE,"logs/android-fxshmd.log");
+        Process shmd=builder(ROOT+"/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1",
+            ROOT+"/usr/libexec/fxshmd","--dir",ROOT+"/tmp/.fxshm").redirectOutput(log).start();
+        if (!shmd.waitFor(10,TimeUnit.SECONDS)) {
+            shmd.destroyForcibly();
+            throw new java.io.IOException("The shared memory daemon (fxshmd) did not start within 10 s.");
+        }
+        if (shmd.exitValue()!=0 || !new File(ROOT,"tmp/.fxshm/sock").exists()) {
+            String output=log.isFile() ? new String(Files.readAllBytes(log.toPath()),StandardCharsets.UTF_8).trim() : "";
+            throw new java.io.IOException("The shared memory daemon (fxshmd) failed (exit "+shmd.exitValue()+")"
+                +(output.isEmpty() ? "." : ":\n"+output));
+        }
+    }
+    /** Xvfb's output: to logcat and logs/android-x11.log, its tail kept for the error message,
+     *  and the shmid of its ready line. Keeps draining while Xvfb runs. */
+    private static final class XvfbWatch implements Runnable {
+        private static final Pattern READY=Pattern.compile("screen 0 shmid (\\d+)");
+        final Process process;
+        final PrintWriter log;
+        final CountDownLatch done=new CountDownLatch(1);
+        private final ArrayDeque<String> tail=new ArrayDeque<>();
+        volatile int shmid=-1;
+        XvfbWatch(Process process,PrintWriter log) { this.process=process; this.log=log; }
+        @Override public void run() {
+            try (BufferedReader r=new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                for (String line; (line=r.readLine())!=null;) {
+                    android.util.Log.i("God of War III-X11",line);
+                    log.println(line);
+                    if (shmid>=0) continue;
+                    synchronized (tail) { tail.add(line); if (tail.size()>12) tail.removeFirst(); }
+                    Matcher m=READY.matcher(line);
+                    if (m.find()) { shmid=Integer.parseInt(m.group(1)); done.countDown(); }
+                }
+            } catch (Exception ignored) {
+            } finally { done.countDown(); }
+        }
+        String tail() { synchronized (tail) { return String.join("\n",tail); } }
+        /** Another X server holds the display: its lock, or its socket (the abstract one is shared by
+         *  every app on the device, so another app's X server on :0 counts). */
+        boolean displayTaken() {
+            String t=tail().toLowerCase(Locale.ROOT);
+            return t.contains("already active") || t.contains("already running")
+                || t.contains("address already in use") || t.contains("cannot establish any listening sockets");
+        }
+    }
+    /** Starts Xvfb on the first free display from :0 and attaches the display bridge to it. */
+    private void startXvfb(SurfaceHolder holder) throws Exception {
+        PrintWriter log=new PrintWriter(new java.io.FileOutputStream(new File(BASE,"logs/android-x11.log")),true);
+        log.println("Device: "+Build.MANUFACTURER+" "+Build.MODEL+" ("+Build.DEVICE+"), Android "+Build.VERSION.RELEASE
+            +" (API "+Build.VERSION.SDK_INT+")"+(Build.VERSION.SDK_INT>=31 ? ", SoC "+Build.SOC_MODEL : "")
+            +", page size "+pageSize());
+        for (int display=0; display<=MAX_DISPLAY && !destroyed; display++) {
+            new File(ROOT,"tmp/.X"+display+"-lock").delete(); new File(ROOT,"tmp/.X11-unix/X"+display).delete();
+            log.println("--- Xvfb :"+display);
+            Process x=process(ROOT+"/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1",
+                ROOT+"/usr/bin/Xvfb",":"+display,"-screen","0","1280x720x24",
+                "-shmem","-ac","-nolisten","tcp","-pn");
+            XvfbWatch watch=new XvfbWatch(x,log);
+            Thread reader=new Thread(watch,"X11-log"); reader.setDaemon(true); reader.start();
+            if (!watch.done.await(XVFB_TIMEOUT_S,TimeUnit.SECONDS)) {
+                x.destroyForcibly();
+                throw new java.io.IOException("The game display could not start: Xvfb :"+display+" did not answer within "
+                    +XVFB_TIMEOUT_S+" s. Log: gow3port/logs/android-x11.log");
+            }
+            if (watch.shmid>=0) {
+                xdisplay=display; xvfb=x; shmid=watch.shmid;
+                android.util.Log.i("God of War III","Xvfb ready on :"+display+", shmid "+shmid);
+                main.post(() -> attach(holder));
+                return;
+            }
+            x.destroyForcibly();
+            if (!watch.displayTaken()) {
+                String code=x.waitFor(2,TimeUnit.SECONDS) ? String.valueOf(x.exitValue()) : "?";
+                throw new java.io.IOException("The game display could not start (Xvfb :"+display+" exited, code "+code
+                    +"). Last Xvfb output:\n"+watch.tail()+"\nFull log: gow3port/logs/android-x11.log");
+            }
+            android.util.Log.w("God of War III","X display :"+display+" is taken by another X server; trying :"+(display+1));
+        }
+        if (destroyed) return;
+        throw new java.io.IOException("The game display could not start: X displays :0-:"+MAX_DISPLAY
+            +" are all held by other X servers. Close other Linux/emulator apps (Termux:X11, fexdroid, Winlator…) and retry.");
     }
     private void startX(SurfaceHolder holder) {
         try {
+            // FEX and the rootfs (fexdroid's) run on 4 KB pages only.
+            if (pageSize()!=4096)
+                throw new java.io.IOException("This device uses "+pageSize()/1024+" KB memory pages; the God of War III"
+                    +" runtime (FEX, Linux rootfs) needs 4 KB pages.");
+            // Before the installer may replace the rootfs they run from.
+            killStaleRuntime();
             boolean installed=RuntimeInstaller.ensure(this, new File(FILES), message -> main.post(() -> status.setText(message)));
             android.util.Log.i("God of War III","runtime installed="+installed);
             if (audio!=null) audio.start();
@@ -490,40 +626,21 @@ public final class GameActivity extends Activity {
                 passwd.println("user:x:"+uid+":"+uid+":God of War III:"+FILES+"/home/gow3port:"+ROOT+"/bin/sh");
                 group.println("root:x:0:"); group.println("user:x:"+uid+":");
             }
-            new File(ROOT,"tmp/.X0-lock").delete(); new File(ROOT,"tmp/.X11-unix/X0").delete();
-            // The shared memory daemon (Xvfb's frame, the display bridge): forks itself and stays.
-            Process shmd=process(ROOT+"/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1",
-                ROOT+"/usr/libexec/fxshmd","--dir",ROOT+"/tmp/.fxshm");
-            shmd.waitFor();
-            xvfb=process(ROOT+"/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1",
-                ROOT+"/usr/bin/Xvfb",":0","-screen","0","1280x720x24",
-                "-shmem","-ac","-nolisten","tcp","-pn");
-            Pattern ready=Pattern.compile("screen 0 shmid (\\d+)");
-            BufferedReader r=new BufferedReader(new InputStreamReader(xvfb.getInputStream()));
-            {
-                String line;
-                while ((line=r.readLine())!=null && !destroyed) {
-                    android.util.Log.i("God of War III-X11",line);
-                    Matcher m=ready.matcher(line);
-                    if (m.find()) {
-                        shmid=Integer.parseInt(m.group(1));
-                        main.post(() -> attach(holder));
-                        break;
-                    }
-                }
-                if (shmid<0) throw new java.io.IOException("The game display could not start.");
-                Thread drain=new Thread(() -> { try (BufferedReader reader=r) { while (reader.readLine()!=null) {} }
-                    catch (Exception ignored) {} },"X11-log");
-                drain.setDaemon(true); drain.start();
-            }
-        } catch (Exception ex) { error(ex.toString()); }
+            new File(BASE,"logs").mkdirs();
+            startShm();
+            startXvfb(holder);
+        } catch (Exception ex) {
+            // A later surface (leaving and returning) tries again.
+            main.post(() -> startingX=false);
+            error(ex instanceof java.io.IOException ? ex.getMessage() : ex.toString());
+        }
     }
     private void attach(SurfaceHolder holder) {
         if (destroyed || !holder.getSurface().isValid()) return;
         String result=DisplayBridge.start(holder.getSurface(),ROOT+"/tmp/.fxshm/sock",shmid,60,ROOT+"/tmp/fxpresent.sock");
         android.util.Log.i("God of War III",result);
         if (!result.startsWith("bridge running:")) { error(result); return; }
-        XInput.connect(0);
+        XInput.connect(xdisplay);
         if (!displayOnly && game==null) worker.execute(() -> startGame());
         pollFrames();
         if (!imePolling) { imePolling=true; pollIme(); }
@@ -662,12 +779,20 @@ public final class GameActivity extends Activity {
     }
     /** The last value of a gow3.ini setting (as run-gow3.sh reads it), or null. */
     private String setting(String key) {
-        String value=null;
-        try (BufferedReader r=new BufferedReader(new java.io.FileReader(new File(BASE,"gow3.ini")))) {
-            for (String line; (line=r.readLine())!=null;)
-                if (line.startsWith(key+"=")) value=line.substring(key.length()+1).trim();
-        } catch (Exception ignored) {}
-        return value;
+        File ini = new File(BASE, "gow3.ini");
+        long mod = ini.lastModified();
+        if (iniCache == null || mod != iniCacheModified) {
+            Map<String,String> map = new java.util.LinkedHashMap<>();
+            try (BufferedReader r = new BufferedReader(new java.io.FileReader(ini))) {
+                for (String line; (line = r.readLine()) != null;) {
+                    int eq = line.indexOf('=');
+                    if (eq > 0) map.put(line.substring(0, eq), line.substring(eq + 1).trim());
+                }
+            } catch (Exception ignored) {}
+            iniCache = map;
+            iniCacheModified = mod;
+        }
+        return iniCache.get(key);
     }
     /** Frame generation (Lossless Scaling only) presents 2-4 frames per game frame. Lossless
      *  Scaling presents them back to back and FIFO spaces them, evenly only when the display runs at

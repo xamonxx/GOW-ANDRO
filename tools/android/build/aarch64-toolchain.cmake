@@ -38,6 +38,25 @@ set(CMAKE_ASM_COMPILER_TARGET aarch64-linux-gnu)
 set(CMAKE_EXE_LINKER_FLAGS_INIT "-fuse-ld=lld")
 set(CMAKE_SHARED_LINKER_FLAGS_INIT "-fuse-ld=lld")
 set(CMAKE_MODULE_LINKER_FLAGS_INIT "-fuse-ld=lld")
+# ARM64 ISA and CPU tuning: GOW3_ARM64_ARCH (default armv8.2-a for broad compat) and
+# GOW3_ARM64_CPU (optional; not cortex-x925 for SD8 Gen 5, whose cores are Oryon V3) control -march/-mcpu for the
+# loader, GPU library, and Atrac9 — everything except FEX (which has its own TUNE_ARCH).
+# Release builds should keep the default; device-specific local builds can set these.
+if(DEFINED ENV{GOW3_ARM64_ARCH})
+  set(GOW3_ARCH_FLAG "-march=$ENV{GOW3_ARM64_ARCH}")
+else()
+  set(GOW3_ARCH_FLAG "-march=armv8.2-a")
+endif()
+if(DEFINED ENV{GOW3_ARM64_CPU})
+  set(GOW3_CPU_FLAG "-mcpu=$ENV{GOW3_ARM64_CPU}")
+  set(CMAKE_C_FLAGS_INIT "${GOW3_CPU_FLAG}")
+  set(CMAKE_CXX_FLAGS_INIT "${GOW3_CPU_FLAG}")
+  set(CMAKE_ASM_FLAGS_INIT "${GOW3_CPU_FLAG}")
+else()
+  set(CMAKE_C_FLAGS_INIT "${GOW3_ARCH_FLAG}")
+  set(CMAKE_CXX_FLAGS_INIT "${GOW3_ARCH_FLAG}")
+  set(CMAKE_ASM_FLAGS_INIT "${GOW3_ARCH_FLAG}")
+endif()
 # Libraries and packages from the sysroot; header-only packages (GOW3_ARM64_HEADER_PREFIX) may come
 # from the host. Programs (code generators, glslang) run on the host.
 set(CMAKE_FIND_ROOT_PATH "${GOW3_ARM64_SYSROOT}" ${GOW3_ARM64_HEADER_PREFIX})
