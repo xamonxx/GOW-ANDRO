@@ -48,6 +48,37 @@ class DeviceProfileTests(unittest.TestCase):
         self.assertIn(values['fps_limit'], ('30', '60', '120', '240', '0'))
         self.assertIn(values['engine_fps'], ('60', '120', '240'))
 
+    def test_performance_defaults_match_the_launcher(self):
+        # gow3-default.ini seeds gow3.ini; LaunchParams.kt shows the same values when a key is missing.
+        params = (ROOT / 'android-launcher/app/src/main/java/com/gow3/android/data/LaunchParams.kt'
+                  ).read_text(encoding='utf-8')
+        for name in ('gow3-default.ini', 'gow3-iqoo15r.ini'):
+            raw = (ROOT / 'tools/android/config' / name).read_text(encoding='utf-8')
+            values = dict(line.split('=', 1) for line in raw.splitlines() if line and not line.startswith('#'))
+            self.assertEqual((values['frames_queued'], values['gpu_boost'], values['cpu_mode']), ('2', '1', 'fast'), name)
+        for key, default in (('frames_queued', '2'), ('gpu_boost', '1'), ('cpu_mode', 'fast'), ('sustained_perf', '0')):
+            block = params[params.index(f'key = "{key}"'):]
+            block = block[:block.index('LaunchParam(') if 'LaunchParam(' in block else len(block)]
+            self.assertIn(f'defaultValue = "{default}"', block, key)
+
+    def test_run_script_applies_gpu_boost_and_fex_profile(self):
+        script = SCRIPT.read_text(encoding='utf-8')
+        self.assertIn('export TU_KGSL_PWR_CONSTRAINT=max', script)
+        self.assertIn('if [ "$(setting gpu_boost)" = 0 ]; then', script)
+        self.assertIn('export FEX_APP_CONFIG="$fex_profile"', script)
+        self.assertIn('fex_profile="$base/gow3-fex-compatible.json"', script)
+        manifest = json.loads((ROOT / 'tools/android/runtime/runtime-manifest.json').read_text(encoding='utf-8'))
+        self.assertIn('gow3port/gow3-fex-compatible.json', [entry['path'] for entry in manifest['required_paths']])
+        profile = json.loads((ROOT / 'tools/android/config/gow3-fex-compatible.json').read_text(encoding='utf-8'))
+        self.assertEqual(profile['Config']['TSOEnabled'], '0')
+
+    def test_game_mode_config_is_declared(self):
+        manifest = (ROOT / 'android-launcher/app/src/main/AndroidManifest.xml').read_text(encoding='utf-8')
+        self.assertIn('android:name="android.game_mode_config"', manifest)
+        config = (ROOT / 'android-launcher/app/src/main/res/xml/game_mode_config.xml').read_text(encoding='utf-8')
+        self.assertIn('android:supportsPerformanceGameMode="true"', config)
+        self.assertIn('android:allowGameFpsOverride="false"', config)
+
 
 if __name__ == '__main__':
     unittest.main()
