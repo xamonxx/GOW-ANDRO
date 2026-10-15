@@ -1,6 +1,7 @@
 from paths import ROOT
 import tempfile
 import unittest
+from unittest import mock
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -117,6 +118,27 @@ class GameProfileTests(unittest.TestCase):
             status = patch_profile_status(path)
             self.assertEqual(status['reason'], 'unsupported-title')
             self.assertIsNotNone(status['eboot_sha256'])
+
+    def test_reference_eboot_is_validated_whatever_the_sfo_version(self):
+        # A 01.02 eboot.bin next to the base game's sce_sys (param.sfo 01.00): the hash proves the
+        # build the built-in addresses are written for. Another eboot at 01.00 stays unsupported.
+        import patches
+        with tempfile.TemporaryDirectory() as folder, \
+                mock.patch.object(patches, 'game_title_id', return_value='CUSA01623'), \
+                mock.patch.object(patches, 'game_app_version', return_value='01.00'):
+            with mock.patch.object(patches, 'eboot_sha256', return_value=patches.REFERENCE_SHA256):
+                status = patch_profile_status(folder)
+            self.assertEqual((status['reason'], status['validated_by']), ('validated', 'eboot-sha256'))
+            self.assertTrue(status['eboot_matches'])
+            with mock.patch.object(patches, 'eboot_sha256', return_value='0' * 64):
+                status = patch_profile_status(folder)
+            self.assertEqual((status['reason'], status['validated_by']), ('unsupported-app-version', None))
+        with tempfile.TemporaryDirectory() as folder, \
+                mock.patch.object(patches, 'game_title_id', return_value='CUSA01623'), \
+                mock.patch.object(patches, 'game_app_version', return_value='01.02'), \
+                mock.patch.object(patches, 'eboot_sha256', return_value='0' * 64):
+            status = patch_profile_status(folder)
+            self.assertEqual((status['reason'], status['validated_by']), ('validated', 'app-version'))
 
     def test_gow3_patches_compile(self):
         names = [m.get('Name') for m in ET.parse(GOW3).getroot().iter('Metadata')]

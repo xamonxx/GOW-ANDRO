@@ -221,25 +221,29 @@ def patch_profile_status(game):
     unlike the pre-signature design this does not compare eboot.bin against a reference hash:
     'validated' means "a known title at the version the built-in XML is tagged with, and the
     eboot is readable". compile_patches() proves each individual site when it builds patches.bin
-    and reports the ones it could not find through 'skipped'.
+    and reports the ones it could not find through 'skipped'. An eboot.bin that is the reference
+    build itself (REFERENCE_SHA256) is validated whatever its param.sfo says: dumps that pair the
+    01.02 eboot with the base game's sce_sys report 01.00 there.
     """
     title=game_title_id(game)
     version=game_app_version(game)
     profile=game_profile(title)
     result={'title_id':title,'app_version':version,'supported':bool(profile),
-            'eboot_sha256':None,'eboot_matches':None,'patch_sites_match':None,'reason':None}
+            'eboot_sha256':None,'eboot_matches':None,'patch_sites_match':None,'reason':None,
+            'validated_by':None}
     result['eboot_sha256']=eboot_sha256(game)
     if result['eboot_sha256'] is None:
         result['reason']='missing-or-unreadable-eboot'
         return result
     if not profile:
         result['reason']='unsupported-title'
-    elif version!=profile[2]:
+    elif version!=profile[2] and result['eboot_sha256']!=REFERENCE_SHA256:
         result['reason']='unsupported-app-version'
     else:
         result['eboot_matches']=True
         result['patch_sites_match']=True
         result['reason']='validated'
+        result['validated_by']='app-version' if version==profile[2] else 'eboot-sha256'
     return result
 
 
