@@ -104,6 +104,54 @@ public final class GameActivity extends Activity {
         audio=new AudioBridge(new File(BASE,"audio.fifo"));
         buildScreen();
         immersive();
+        sustainedPerformance();
+        watchThermal();
+    }
+
+    /** gow3.ini sustained_perf=1: clocks the phone can hold through a long session (a lower peak,
+     *  no drop once it is hot), on phones that support it. */
+    private void sustainedPerformance() {
+        if (!"1".equals(setting("sustained_perf"))) return;
+        android.os.PowerManager power=(android.os.PowerManager)getSystemService(POWER_SERVICE);
+        boolean supported=power!=null && power.isSustainedPerformanceModeSupported();
+        if (supported) getWindow().setSustainedPerformanceMode(true);
+        logThermal("sustained performance "+(supported ? "on" : "unsupported on this phone"));
+    }
+    /** The phone's thermal state while playing (logs/android-thermal.log): a frame rate that drops
+     *  after a few minutes is the SoC throttling, not the game. Status changes, and the headroom
+     *  every 30 s (1.0: throttling starts). */
+    private Object thermalListener;
+    private final Runnable thermalTick=new Runnable() {
+        @Override public void run() {
+            if (destroyed) return;
+            logThermal("tick");
+            main.postDelayed(this,30000);
+        }
+    };
+    private void watchThermal() {
+        if (Build.VERSION.SDK_INT<29) return;
+        android.os.PowerManager power=(android.os.PowerManager)getSystemService(POWER_SERVICE);
+        if (power==null) return;
+        android.os.PowerManager.OnThermalStatusChangedListener listener=status -> logThermal("status changed");
+        power.addThermalStatusListener(listener);
+        thermalListener=listener;
+        main.postDelayed(thermalTick,30000);
+    }
+    private void logThermal(String event) {
+        String state="";
+        android.os.PowerManager power=(android.os.PowerManager)getSystemService(POWER_SERVICE);
+        if (power!=null && Build.VERSION.SDK_INT>=29) {
+            state=" status="+power.getCurrentThermalStatus();
+            if (Build.VERSION.SDK_INT>=30)
+                state+=String.format(Locale.ROOT," headroom(10s)=%.2f",power.getThermalHeadroom(10));
+        }
+        String line=String.format(Locale.ROOT,"%tT Thermal: %s%s",System.currentTimeMillis(),event,state);
+        android.util.Log.i("God of War III",line);
+        File logs=new File(BASE,"logs");
+        logs.mkdirs();
+        try (PrintWriter out=new PrintWriter(new java.io.FileWriter(new File(logs,"android-thermal.log"),true))) {
+            out.println(line);
+        } catch (Exception ignored) {}
     }
 
     private int dp(float n) { return Math.round(n*getResources().getDisplayMetrics().density); }
@@ -798,7 +846,8 @@ public final class GameActivity extends Activity {
      *  Scaling presents them back to back and FIFO spaces them, evenly only when the display runs at
      *  FPS limit x frames: that mode when the display has it (30x2: 60 Hz, 30x4, 30x3, 60x2: 120 Hz),
      *  else the fastest one (at the system's 60 Hz generated frames were dropped). Without frame
-     *  generation, the system's choice. FSR 3.1 frame generation is not wired on this tree
+     *  generation, a mode that is a whole multiple of the FPS limit (nearest 120 Hz), so every
+     *  frame stays on screen equally long. FSR 3.1 frame generation is not wired on this tree
      *  (shadps4 has no GOW3_FRAME_GEN consumer), so the multiplier is LSFG-only. */
     /** LSFG 是否**真的**会在本次启动启用——与 run-gow3.sh 的 preflight 用同一套规则：倍率 2-4、
      *  运行时的 layer（manifest + liblsfg-vk.so）都在、玩家的 Lossless.dll 在两处查找位置之一。
@@ -831,13 +880,22 @@ public final class GameActivity extends Activity {
             if (destroyed) return;
             android.view.Display display=Build.VERSION.SDK_INT>=30 ? getDisplay() : getWindowManager().getDefaultDisplay();
             android.view.Display.Mode current=display.getMode();
-            int id=0, fastest=0; float best=0;
-            if (frames>1) for (android.view.Display.Mode mode:display.getSupportedModes()) {
+            int id=0, fastest=0, even=0; float best=0, evenRate=0;
+            for (android.view.Display.Mode mode:display.getSupportedModes()) {
                 if (mode.getPhysicalWidth()!=current.getPhysicalWidth() || mode.getPhysicalHeight()!=current.getPhysicalHeight()) continue;
-                if (Math.abs(mode.getRefreshRate()-target)<1) id=mode.getModeId();
-                if (mode.getRefreshRate()>best) { best=mode.getRefreshRate(); fastest=mode.getModeId(); }
+                float rate=mode.getRefreshRate();
+                if (Math.abs(rate-target)<1) id=mode.getModeId();
+                if (rate>best) { best=rate; fastest=mode.getModeId(); }
+                // A whole multiple of the frame rate, the one nearest 120 Hz: 60 FPS on a 144 Hz
+                // panel shows frames for 2 and 3 refreshes in turn, which judders at a steady 60.
+                int multiple=Math.round(rate/target);
+                if (multiple>=1 && Math.abs(rate-multiple*target)<1
+                        && (even==0 || Math.abs(rate-120)<Math.abs(evenRate-120))) { even=mode.getModeId(); evenRate=rate; }
             }
-            if (id==0) id=fastest;
+            // Frame generation: FPS limit x frames, else the fastest mode. Without it: the even
+            // multiple, the fastest mode for an unlimited frame rate, else the system's choice (0).
+            if (frames>1) { if (id==0) id=fastest; }
+            else id="0".equals(limit) ? fastest : even;
             WindowManager.LayoutParams attrs=getWindow().getAttributes();
             if (attrs.preferredDisplayModeId!=id) { attrs.preferredDisplayModeId=id; getWindow().setAttributes(attrs); }
         });
@@ -894,6 +952,10 @@ public final class GameActivity extends Activity {
     }
     @Override protected void onDestroy() {
         destroyed=true; pad.reset(); audio.stop(); main.removeCallbacksAndMessages(null);
+        if (thermalListener!=null && Build.VERSION.SDK_INT>=29) {
+            android.os.PowerManager power=(android.os.PowerManager)getSystemService(POWER_SERVICE);
+            if (power!=null) power.removeThermalStatusListener((android.os.PowerManager.OnThermalStatusChangedListener)thermalListener);
+        }
         DisplayBridge.stop(); stopGame(); if (xvfb!=null) xvfb.destroyForcibly();
         worker.shutdownNow(); super.onDestroy();
     }
