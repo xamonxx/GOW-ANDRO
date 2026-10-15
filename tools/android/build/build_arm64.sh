@@ -39,6 +39,31 @@ export PATH="$headers/bin:$PATH"   # glslangValidator for gpu/host_shaders
 }
 mkdir -p "$out"
 
+# Only header-only packages (Boost, robin-map, VMA, xbyak, and the Vulkan headers that are newer
+# than Debian's, see docs/QUICKSTART.md) may come from $headers: the libraries are the sysroot's,
+# which the device has. A prefix that also carries library headers (CI's conda env:
+# fmt 12 over Debian's fmt 10, SDL3, FFmpeg) shadows the sysroot's, and libgow3gpu then needs
+# symbols the device's libraries lack ("symbol lookup error: undefined symbol: fmt::v12::vformat",
+# exit 127 at the first log line). Stage the header-only packages alone in that case.
+if [[ -e $headers/include/fmt || -e $headers/include/SDL3 || -e $headers/include/libavcodec ]]; then
+    staged=$out/header-only
+    rm -rf "$staged"
+    mkdir -p "$staged/include" "$staged/share/cmake" "$staged/lib/cmake"
+    cp -a "$headers/include/boost" "$headers/include/tsl" "$staged/include/"
+    for name in vk_mem_alloc.h vma xbyak vulkan vk_video; do
+        [[ -e $headers/include/$name ]] && cp -a "$headers/include/$name" "$staged/include/"
+    done
+    for name in share/cmake/tsl-robin-map share/cmake/VulkanMemoryAllocator lib/cmake/VulkanMemoryAllocator; do
+        [[ -d $headers/$name ]] && mkdir -p "$staged/$(dirname "$name")" && cp -a "$headers/$name" "$staged/$name"
+    done
+    for config in "$headers"/lib/cmake/Boost-* "$headers"/lib/cmake/boost_headers-*; do
+        [[ -d $config ]] && cp -a "$config" "$staged/lib/cmake/"
+    done
+    echo "    header-only packages staged from $headers (its library headers stay out of the build)"
+    headers=$staged
+    boost_dir=${GOW3_BOOST_DIR:-$(find "$headers/lib/cmake" -maxdepth 1 -name 'Boost-*' -print -quit)}
+fi
+
 # ---- pkg-config cross sanity check ------------------------------------------
 # conda-forge's pkg-config (pkgconf) enables --define-prefix by default: it relocates the Debian
 # "/usr" prefix inside the sysroot's .pc files and then prefixes PKG_CONFIG_SYSROOT_DIR on top of
@@ -166,6 +191,19 @@ if ! build_ninja "$out/gpu" gow3gpu "$out/gpu-build.log"; then
     echo "    GPU build failed (full log: $out/gpu-build.log)" >&2
     grep -v '^\[' "$out/gpu-build.log" | tail -40 >&2
     exit 1
+fi
+# Every fmt symbol libgow3gpu takes from libfmt must exist in the sysroot's libfmt, the one the
+# device loads (see the header-only staging above): fail here, not at the game's first log line.
+fmt_lib=$(find "$sysroot/usr/lib/aarch64-linux-gnu" -maxdepth 1 -name 'libfmt.so.*' -print -quit)
+if [[ -n $fmt_lib ]] && command -v llvm-nm >/dev/null; then
+    fmt_missing=$(comm -23 \
+        <(llvm-nm -D --undefined-only --format=just-symbols "$out/gpu/libgow3gpu.so" | { grep '^_ZN3fmt' || true; } | sort -u) \
+        <(llvm-nm -D --defined-only --format=just-symbols "$fmt_lib" | sort -u))
+    if [[ -n $fmt_missing ]]; then
+        echo "    libgow3gpu.so needs fmt symbols that $(basename "$fmt_lib") lacks (fmt headers of another version):" >&2
+        printf '%s\n' "$fmt_missing" | head -5 >&2
+        exit 1
+    fi
 fi
 end_stage "libgow3gpu.so"
 
