@@ -647,7 +647,7 @@ public final class GameActivity extends Activity {
     }
     // ---- Game folder: the extracted retail game in shared storage ----
     /** Known retail folder names; the selected folder is still validated by eboot.bin. */
-    private static final String[] SERIALS={"CUSA01740","CUSA00900","CUSA00207","CUSA00208","CUSA00299",
+    private static final String[] SERIALS={"CUSA01623","CUSA01715","CUSA01720","CUSA01740","CUSA00900","CUSA00207","CUSA00208","CUSA00299",
         "CUSA01363","CUSA03179","CUSA03014","CUSA03023"};
     private static boolean isGame(File dir) { return dir!=null && new File(dir,"eboot.bin").isFile(); }
     private boolean hasGame() {
