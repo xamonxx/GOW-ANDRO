@@ -209,7 +209,15 @@ jobs:
             --sysroot .local-deps/android/arm64-sysroot
 
       - name: Build Turnip and LSFG variants
+        shell: bash
         run: |
+          set -euo pipefail
+          # Mesa's meson needs glslangValidator, which the micromamba environment provides; this
+          # step does not activate it (its compilers and Python stay the system's), so only append
+          # its bin directory.
+          env_bin="${MAMBA_ROOT_PREFIX:-$HOME/micromamba}/envs/gow3/bin"
+          export PATH="$PATH:$env_bin"
+          command -v glslangValidator >/dev/null || { echo "glslangValidator not found (looked in $env_bin)" >&2; exit 1; }
           bash tools/android/build/build_turnip.sh main
           bash tools/android/build/build_turnip.sh gen8
           bash tools/android/build/build_lsfg.sh
