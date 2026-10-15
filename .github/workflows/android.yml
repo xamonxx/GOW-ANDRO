@@ -47,9 +47,42 @@ jobs:
             discover -s tests -p 'test_android_*.py'
           python -m py_compile tools/android/*.py
 
+  # Kotlin/Java compile errors and launcher unit tests in minutes, before the long native build:
+  # the release job waits for this one. No runtime payload or Steam libraries are needed (the
+  # Steam stub source set is compiled when they are absent).
+  launcher-check:
+    name: Android launcher compile and unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: >-
+            platform-tools
+            platforms;android-${{ env.ANDROID_PLATFORM }}
+            build-tools;${{ env.ANDROID_BUILD_TOOLS }}
+
+      - name: Compile the launcher and run its unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          android-launcher/gradlew -p android-launcher --no-daemon \
+            :app:compileReleaseKotlin :app:compileReleaseJavaWithJavac :app:testReleaseUnitTest
+
   release:
     name: Build signed Android release
     if: github.event_name != 'pull_request'
+    needs: launcher-check
     runs-on: ubuntu-24.04
     environment: android-release
     permissions:
