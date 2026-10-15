@@ -856,14 +856,24 @@ public final class GameActivity extends Activity {
             Thread log=new Thread(() -> {
                 try (BufferedReader r=new BufferedReader(new InputStreamReader(launched.getInputStream()));
                      PrintWriter out=new PrintWriter(new File(BASE,"logs/android-game.log"))) {
-                    String line; while ((line=r.readLine())!=null) { out.println(line); out.flush(); }
+                    // The last lines go into the error message: the cause is usually there.
+                    ArrayDeque<String> tail=new ArrayDeque<>();
+                    String line;
+                    while ((line=r.readLine())!=null) {
+                        out.println(line); out.flush();
+                        tail.add(line); if (tail.size()>8) tail.removeFirst();
+                    }
                     int code=launched.waitFor();
                     if (game==launched) {
                         game=null;
+                        String last=tail.isEmpty() ? "" : "\n\n"+String.join("\n",tail);
                         // run-gow3.sh exits 4 when Vulkan/Turnip cannot initialize: the driver
                         // failure must not be reported as validated texture integrity.
-                        if (code==4) error("Graphics initialization failed (Vulkan/Turnip). See logs/android-game.log.");
-                        else error("Game stopped ("+code+"). Open the menu to restart.");
+                        if (code==4) error("Graphics initialization failed (Vulkan/Turnip). See logs/android-game.log."+last);
+                        // 127: the shell found no such command, or the loader could not load a library.
+                        else if (code==127) error("Game stopped (127): a runtime program or library is missing."
+                            +" See logs/android-game.log."+last);
+                        else error("Game stopped ("+code+"). Open the menu to restart."+last);
                     }
                 } catch (Exception ex) {
                     // A restart (settings, cheats) kills this process on purpose: its reader is
