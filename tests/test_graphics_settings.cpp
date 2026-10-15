@@ -10,6 +10,11 @@
 
 namespace G = Gow3Graphics;
 
+#ifndef _WIN32
+// Linux (CI's launcher-check job): an empty value is ignored by Load like an unset one.
+static int _putenv_s(const char* name, const char* value) { return setenv(name, value, 1); }
+#endif
+
 static std::string Read(const char* path) {
     std::ifstream in(path);
     std::stringstream s;
@@ -89,6 +94,25 @@ int main() {
     const std::string cheats = Read(path);
     assert(cheats.find("cheat_double_jumps=1\n") != std::string::npos);
     assert(cheats.find("cheat_very_hard=1\n") != std::string::npos);
+
+    // The in-game menu's Save keeps the keys it does not own (Android launcher, LSFG, pad
+    // mapping), one line each with the last value, and still writes its own.
+    {
+        std::ofstream out(path);
+        out << "# comment\ngpu_boost=1\ncpu_mode=fast\nlsfg_multiplier=2\npad.cross=a\n"
+               "cpu_mode=accurate\nframes_queued=2\nvsync=0\n";
+    }
+    Gow3Settings::Load();
+    Gow3Settings::Save();
+    Gow3Settings::Save();  // twice: kept keys do not multiply
+    const std::string kept = Read(path);
+    for (const char* line : {"gpu_boost=1\n", "cpu_mode=accurate\n", "lsfg_multiplier=2\n", "pad.cross=a\n",
+                             "frames_queued=2\n", "vsync=0\n"}) {
+        const auto at = kept.find(line);
+        assert(at != std::string::npos);
+        assert(kept.find(line, at + 1) == std::string::npos);
+    }
+    assert(kept.find("cpu_mode=fast") == std::string::npos);
     std::remove(path);
     std::puts("PASS: graphics settings");
 }

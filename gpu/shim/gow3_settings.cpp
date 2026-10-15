@@ -9,6 +9,7 @@
 #include <cstring>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace Gow3Settings {
 
@@ -17,6 +18,27 @@ namespace {
 const char* Path() {
     const char* env = std::getenv("GOW3_CONFIG");
     return env && env[0] ? env : "gow3.ini";
+}
+
+// The key=value lines of a settings file, as Load reads them.
+std::vector<std::string> SettingLines(const char* path) {
+    std::vector<std::string> lines;
+    if (FILE* file = std::fopen(path, "r")) {
+        char line[512];
+        while (std::fgets(line, sizeof(line), file)) {
+            std::string text{line};
+            text.erase(text.find_last_not_of(" \t\r\n") + 1);
+            if (!text.empty() && text[0] != '#' && text.find('=') != std::string::npos) {
+                lines.push_back(std::move(text));
+            }
+        }
+        std::fclose(file);
+    }
+    return lines;
+}
+
+std::string KeyOf(const std::string& line) {
+    return line.substr(0, line.find('='));
 }
 
 float Clamp(float v, float lo, float hi) {
@@ -265,6 +287,10 @@ bool ResolutionNeedsRestart() {
 
 void Save() {
     const auto& v = Get();
+    // Keys this function does not write (the Android launcher's gpu_boost / cpu_mode, lsfg_*,
+    // pad.*, skip_intro, effect_*, ...) are written back after its own: the in-game menu used to
+    // drop them.
+    const std::vector<std::string> previous = SettingLines(Path());
     FILE* file = std::fopen(Path(), "w");
     if (!file) {
         std::printf("Settings: cannot write %s\n", Path());
@@ -318,6 +344,30 @@ void Save() {
     std::fprintf(file, "live_resolution=%s\n", v.live_resolution < 0 ? "auto"
                                                   : v.live_resolution ? "1" : "0");
     std::fclose(file);
+
+    std::vector<std::string> written;
+    for (const auto& line : SettingLines(Path())) {
+        written.push_back(KeyOf(line));
+    }
+    // The last line of a key wins (as Load reads it); one line per kept key.
+    std::vector<std::string> kept;
+    for (auto line = previous.rbegin(); line != previous.rend(); ++line) {
+        const std::string key = KeyOf(*line);
+        const auto seen = [&](const std::string& other) { return KeyOf(other) == key; };
+        if (std::find(written.begin(), written.end(), key) == written.end() &&
+            std::none_of(kept.begin(), kept.end(), seen)) {
+            kept.push_back(*line);
+        }
+    }
+    if (kept.empty()) {
+        return;
+    }
+    if (FILE* append = std::fopen(Path(), "a")) {
+        for (auto line = kept.rbegin(); line != kept.rend(); ++line) {
+            std::fprintf(append, "%s\n", line->c_str());
+        }
+        std::fclose(append);
+    }
 }
 
 float PresetScale(int preset) {
