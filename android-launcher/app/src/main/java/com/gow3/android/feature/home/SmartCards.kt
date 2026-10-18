@@ -98,7 +98,7 @@ private fun Card(content: @Composable () -> Unit) {
             .padding(bottom = 16.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(LauncherColors.surface)
-            .border(BorderStroke(1.dp, LauncherColors.gold.copy(alpha = 0.5f)), RoundedCornerShape(14.dp))
+            .border(BorderStroke(1.dp, LauncherColors.accent.copy(alpha = 0.5f)), RoundedCornerShape(14.dp))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) { content() }
@@ -106,7 +106,7 @@ private fun Card(content: @Composable () -> Unit) {
 
 @Composable
 private fun Heading(text: String) {
-    Text(text, color = LauncherColors.gold, fontFamily = FontFamily.Serif, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+    Text(text, color = LauncherColors.accent, fontFamily = FontFamily.Serif, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
 }
 
 @Composable
@@ -119,7 +119,7 @@ private fun AdviceRow(advice: Advice, onApply: (Map<String, String>) -> Unit) {
                 color = LauncherColors.textPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(LauncherColors.crimson)
+                    .background(LauncherColors.primary)
                     .clickable { onApply(advice.updates) }
                     .padding(horizontal = 12.dp, vertical = 8.dp),
             )

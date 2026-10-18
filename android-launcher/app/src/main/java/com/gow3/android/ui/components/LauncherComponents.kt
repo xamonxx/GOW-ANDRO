@@ -27,15 +27,24 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/** Gaming theme: deep navy with a sky-blue accent. */
 internal object LauncherColors {
-    val backgroundTop = Color(0xFF29120F)
-    val backgroundBottom = Color(0xFF0D0A07)
-    val surface = Color(0xFF12100D)
-    val navSurface = Color(0xFF171411)
-    val textPrimary = Color(0xFFE8DFC9)
-    val textMuted = Color(0xFF8E9097)
-    val gold = Color(0xFFC6AD76)
-    val crimson = Color(0xFFB8172B)
+    val backgroundTop = Color(0xFF0B1220)
+    val backgroundBottom = Color(0xFF070B12)
+    val surface = Color(0xE6111A2B)
+    val surfaceRaised = Color(0xFF16233A)
+    val navSurface = Color(0xFF0F1724)
+    val textPrimary = Color(0xFFE6F1FF)
+    val textMuted = Color(0xFF8A9BB4)
+    /** Headings, borders, selected items. */
+    val accent = Color(0xFF38BDF8)
+    val accentSoft = Color(0xFF7DD3FC)
+    /** Filled buttons and the active tab. */
+    val primary = Color(0xFF0EA5E9)
+    val primaryDeep = Color(0xFF0369A1)
+    val success = Color(0xFF34D399)
+    val warning = Color(0xFFFBBF24)
+    val danger = Color(0xFFF87171)
 }
 
 @Composable
@@ -49,8 +58,8 @@ internal fun ActionButton(label: String, primary: Boolean, modifier: Modifier = 
         textAlign = TextAlign.Center,
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(if (primary) LauncherColors.crimson else LauncherColors.navSurface)
-            .border(BorderStroke(1.dp, LauncherColors.gold.copy(alpha = 0.45f)), RoundedCornerShape(8.dp))
+            .background(if (primary) LauncherColors.primary else LauncherColors.navSurface)
+            .border(BorderStroke(1.dp, LauncherColors.accent.copy(alpha = 0.45f)), RoundedCornerShape(8.dp))
             .clickable(onClick = onClick)
             .padding(vertical = 11.dp, horizontal = 8.dp),
     )
@@ -86,11 +95,11 @@ internal fun EmptyState(title: String, description: String) {
             .height(320.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(LauncherColors.surface)
-            .border(BorderStroke(1.dp, LauncherColors.gold.copy(alpha = 0.35f)), RoundedCornerShape(14.dp)),
+            .border(BorderStroke(1.dp, LauncherColors.accent.copy(alpha = 0.35f)), RoundedCornerShape(14.dp)),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("◇", color = LauncherColors.gold, fontSize = 30.sp)
+        Text("◇", color = LauncherColors.accent, fontSize = 30.sp)
         Spacer(Modifier.height(16.dp))
         Text(title, color = LauncherColors.textPrimary, fontFamily = FontFamily.Serif, fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
         Spacer(Modifier.height(8.dp))

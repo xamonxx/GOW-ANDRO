@@ -33,11 +33,11 @@ internal fun LogCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(LauncherColors.surface)
-            .border(BorderStroke(1.dp, LauncherColors.gold.copy(alpha = 0.5f)), RoundedCornerShape(14.dp))
+            .border(BorderStroke(1.dp, LauncherColors.accent.copy(alpha = 0.5f)), RoundedCornerShape(14.dp))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(stringResource(R.string.log_runtime_logs), color = LauncherColors.gold, fontFamily = FontFamily.Serif, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+        Text(stringResource(R.string.log_runtime_logs), color = LauncherColors.accent, fontFamily = FontFamily.Serif, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 if (hasLogs) stringResource(R.string.logs_found) else stringResource(R.string.no_logs_yet),

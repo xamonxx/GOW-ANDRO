@@ -83,11 +83,11 @@ internal fun DeviceMonitorCard(modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(LauncherColors.surface)
-            .border(BorderStroke(1.dp, LauncherColors.gold.copy(alpha = 0.5f)), RoundedCornerShape(14.dp))
+            .border(BorderStroke(1.dp, LauncherColors.accent.copy(alpha = 0.5f)), RoundedCornerShape(14.dp))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text(stringResource(R.string.monitor_title), color = LauncherColors.gold, fontFamily = FontFamily.Serif, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+        Text(stringResource(R.string.monitor_title), color = LauncherColors.accent, fontFamily = FontFamily.Serif, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
         val r = reading
         val dash = stringResource(R.string.monitor_unavailable)
         val temperature = when {
@@ -130,9 +130,9 @@ private fun thermalLabel(status: Int, dash: String): String = when (status) {
 }
 
 private fun thermalColor(status: Int): Color = when (status) {
-    0, 1 -> Color(0xFF34D399)
-    2 -> Color(0xFFFBBF24)
-    in 3..6 -> Color(0xFFF87171)
+    0, 1 -> LauncherColors.success
+    2 -> LauncherColors.warning
+    in 3..6 -> LauncherColors.danger
     else -> LauncherColors.textPrimary
 }
 

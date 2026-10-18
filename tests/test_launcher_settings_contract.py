@@ -45,12 +45,21 @@ def _strip_block_comments(text):
     return re.sub(r'/\*.*?\*/', '', text, flags=re.S)
 
 
+def _english_strings():
+    source = (ROOT / 'android-launcher/app/src/main/res/values/strings.xml').read_text(encoding='utf-8')
+    return dict(re.findall(r'<string name="([^"]+)"[^>]*>(.*?)</string>', source, re.S))
+
+
 def _java_string_array(source, name):
-    """The literals of a `private static final String[] NAME={"a","b"}` declaration."""
-    match = re.search(r'String\[\]\s+' + name + r'\s*=\s*\{([^}]*)\}', source)
+    """The labels of a `String[] NAME={"a","b"}` declaration, or of an `int[] NAME={R.string.a,...}`
+    one (the in-game dialogs' translated labels), resolved to their English text."""
+    match = re.search(r'(String|int)\[\]\s+' + name + r'\s*=\s*\{([^}]*)\}', source)
     if not match:
-        raise AssertionError('no String[] %s declaration found' % name)
-    return re.findall(r'"([^"]*)"', match.group(1))
+        raise AssertionError('no String[] or int[] %s declaration found' % name)
+    if match.group(1) == 'String':
+        return re.findall(r'"([^"]*)"', match.group(2))
+    english = _english_strings()
+    return [english[key] for key in re.findall(r'R\.string\.(\w+)', match.group(2))]
 
 
 def _method(source, signature, end_signature):

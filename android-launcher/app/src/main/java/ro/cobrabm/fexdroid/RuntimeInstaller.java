@@ -161,7 +161,7 @@ final class RuntimeInstaller {
             catch (Exception ignored) { /* stale marker: reinstall from the signed asset */ }
         }
 
-        status.accept("Installing God of War III runtime…");
+        status.accept(context.getString(com.gow3.android.R.string.game_installing_runtime));
         File archive = new File(files, "runtime.tar.gz.part");
         File stage = new File(files, ".runtime-staging-" + expected);
         deleteTree(stage);

@@ -2,7 +2,6 @@ package com.gow3.android
 
 import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -23,14 +22,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var logManager: LogManager
 
     override fun attachBaseContext(newBase: Context) {
-        super.attachBaseContext(applyLanguage(newBase))
-    }
-
-    /** 按 LanguageManager 的语言覆盖（或系统语言）为 MainActivity 注入 Locale 配置。 */
-    private fun applyLanguage(base: Context): Context {
-        val config = Configuration(base.resources.configuration)
-        config.setLocale(LanguageManager.resolve(base))
-        return base.createConfigurationContext(config)
+        // 按 LanguageManager 的语言覆盖（默认印尼语）为 MainActivity 注入 Locale 配置。
+        super.attachBaseContext(LanguageManager.wrap(newBase))
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

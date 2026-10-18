@@ -76,7 +76,7 @@ internal fun AboutScreen(
 
     ScreenColumn {
         Text(stringResource(R.string.about_title), color = LauncherColors.textPrimary, fontFamily = FontFamily.Serif, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Text(stringResource(R.string.about_version_fmt, "1.2.4"), color = LauncherColors.gold, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.about_version_fmt, "1.2.4"), color = LauncherColors.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         Text(stringResource(R.string.about_description), color = LauncherColors.textMuted, fontSize = 13.sp, lineHeight = 19.sp)
         Spacer(Modifier.height(8.dp))
         ContactCard()
@@ -125,14 +125,14 @@ internal fun AboutScreen(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .background(LauncherColors.surface)
-                .border(BorderStroke(1.dp, LauncherColors.gold.copy(alpha = 0.4f)), RoundedCornerShape(12.dp))
+                .border(BorderStroke(1.dp, LauncherColors.accent.copy(alpha = 0.4f)), RoundedCornerShape(12.dp))
                 .clickable { }
                 .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(stringResource(R.string.about_third_party_licenses), color = LauncherColors.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-            Text("›", color = LauncherColors.gold, fontSize = 24.sp)
+            Text("›", color = LauncherColors.accent, fontSize = 24.sp)
         }
         LanguageSetting(onChangeLanguage)
     }
@@ -144,16 +144,17 @@ private fun LanguageSetting(onChange: (String) -> Unit) {
     val context = LocalContext.current
     val current = LanguageManager.read(context)
     val options = listOf(
-        R.string.language_follow_system to LanguageManager.FOLLOW_SYSTEM,
-        R.string.language_zh to LanguageManager.ZH,
+        R.string.language_id to LanguageManager.ID,
         R.string.language_en to LanguageManager.EN,
+        R.string.language_zh to LanguageManager.ZH,
+        R.string.language_follow_system to LanguageManager.FOLLOW_SYSTEM,
     )
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(LauncherColors.surface)
-            .border(BorderStroke(1.dp, LauncherColors.gold.copy(alpha = 0.4f)), RoundedCornerShape(12.dp))
+            .border(BorderStroke(1.dp, LauncherColors.accent.copy(alpha = 0.4f)), RoundedCornerShape(12.dp))
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -173,8 +174,8 @@ private fun LanguageSetting(onChange: (String) -> Unit) {
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (selected) LauncherColors.crimson else LauncherColors.navSurface)
-                        .border(BorderStroke(1.dp, LauncherColors.gold.copy(alpha = 0.45f)), RoundedCornerShape(8.dp))
+                        .background(if (selected) LauncherColors.primary else LauncherColors.navSurface)
+                        .border(BorderStroke(1.dp, LauncherColors.accent.copy(alpha = 0.45f)), RoundedCornerShape(8.dp))
                         .clickable { onChange(value) }
                         .padding(vertical = 10.dp, horizontal = 8.dp),
                 )

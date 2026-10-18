@@ -70,7 +70,7 @@ final class TouchControllerOverlay extends View {
             centers.put(name,new PointF(preferences.getFloat("overlay_x_"+name,DEFAULT[i][0]),
                                         preferences.getFloat("overlay_y_"+name,DEFAULT[i][1])));
         }
-        setContentDescription("On-screen PlayStation controller");
+        setContentDescription(context.getString(com.gow3.android.R.string.game_controller_description));
     }
     private PointF center(String name) { return centers.get(name); }
     // The 1280x720 layout drawn at one scale in the centred 16:9 area, as the game (MainActivity):
@@ -247,7 +247,7 @@ final class TouchControllerOverlay extends View {
     private void circle(Canvas c,String name,float r,String label,int accent) {
         PointF p=center(name);
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(name.equals(dragged) ? 0xffe8dfc9 : pressed.contains(name) ? 0xaae8dfc9 : 0x6630394c);
+        paint.setColor(name.equals(dragged) ? 0xffe6f1ff : pressed.contains(name) ? 0xaae6f1ff : 0x6630394c);
         c.drawCircle(p.x,p.y,r,paint);
         paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(3); paint.setColor(accent);
         c.drawCircle(p.x,p.y,r,paint);
@@ -258,9 +258,9 @@ final class TouchControllerOverlay extends View {
     private void rectangle(Canvas c,String name,float width,String label) {
         PointF p=center(name);
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(name.equals(dragged) ? 0xffe8dfc9 : pressed.contains(name) ? 0xaae8dfc9 : 0x6630394c);
+        paint.setColor(name.equals(dragged) ? 0xffe6f1ff : pressed.contains(name) ? 0xaae6f1ff : 0x6630394c);
         c.drawRoundRect(p.x-width/2,p.y-25,p.x+width/2,p.y+25,14,14,paint);
-        paint.setStyle(Paint.Style.STROKE); paint.setColor(0xbbc6ad76); paint.setStrokeWidth(2);
+        paint.setStyle(Paint.Style.STROKE); paint.setColor(0xbb38bdf8); paint.setStrokeWidth(2);
         c.drawRoundRect(p.x-width/2,p.y-25,p.x+width/2,p.y+25,14,14,paint);
         paint.setStyle(Paint.Style.FILL); paint.setTypeface(Typeface.DEFAULT_BOLD);
         paint.setTextSize(19); paint.setTextAlign(Paint.Align.CENTER);
@@ -268,7 +268,7 @@ final class TouchControllerOverlay extends View {
     }
     private void drawStick(Canvas c,String name) {
         PointF center=center(name);
-        paint.setStyle(Paint.Style.FILL); paint.setColor(name.equals(dragged) ? 0xffe8dfc9 : 0x6630394c);
+        paint.setStyle(Paint.Style.FILL); paint.setColor(name.equals(dragged) ? 0xffe6f1ff : 0x6630394c);
         c.drawCircle(center.x,center.y,57,paint);
         paint.setStyle(Paint.Style.STROKE); paint.setColor(0xffa0aec0); paint.setStrokeWidth(3);
         c.drawCircle(center.x,center.y,57,paint);
@@ -295,8 +295,8 @@ final class TouchControllerOverlay extends View {
         rectangle(c,"l2",108,"L2"); rectangle(c,"l1",108,"L1");
         rectangle(c,"r1",108,"R1"); rectangle(c,"r2",108,"R2");
         rectangle(c,"touchpad",126,"TOUCH"); rectangle(c,"options",108,"OPTIONS");
-        circle(c,"up",39,"▲",0xffc6ad76); circle(c,"left",39,"◀",0xffc6ad76);
-        circle(c,"right",39,"▶",0xffc6ad76); circle(c,"down",39,"▼",0xffc6ad76);
+        circle(c,"up",39,"▲",0xff38bdf8); circle(c,"left",39,"◀",0xff38bdf8);
+        circle(c,"right",39,"▶",0xff38bdf8); circle(c,"down",39,"▼",0xff38bdf8);
         circle(c,"triangle",39,"△",0xff83cdaa); circle(c,"circle",39,"○",0xffe38288);
         circle(c,"cross",39,"×",0xff88aaff); circle(c,"square",39,"□",0xffd6a0ce);
         drawStick(c,"leftstick"); drawStick(c,"rightstick");
@@ -304,7 +304,7 @@ final class TouchControllerOverlay extends View {
         if (editing) {
             paint.setStyle(Paint.Style.FILL); paint.setColor(0xcc15171d);
             c.drawRoundRect(548,9,732,62,13,13,paint);
-            paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(2); paint.setColor(0xffc6ad76);
+            paint.setStyle(Paint.Style.STROKE); paint.setStrokeWidth(2); paint.setColor(0xff38bdf8);
             c.drawRoundRect(548,9,732,62,13,13,paint);
             paint.setStyle(Paint.Style.FILL); paint.setTextSize(20);
             paint.setTextAlign(Paint.Align.CENTER);

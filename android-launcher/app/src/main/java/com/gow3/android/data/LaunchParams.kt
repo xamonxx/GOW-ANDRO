@@ -179,6 +179,40 @@ internal object LaunchParams {
             defaultValue = "0",
             descriptionRes = R.string.param_desc_frame_stats,
         ),
+        LaunchParam(
+            // run-gow3.sh 只接受 2-4；auto 由 GameActivity 按屏幕刷新率解析（LsfgAuto），经 GOW3_LSFG_MULTIPLIER 传入。
+            key = "lsfg_multiplier", labelRes = R.string.param_lsfg_multiplier, groupRes = R.string.param_group_frame_gen,
+            options = listOf(
+                LaunchOption("0", R.string.param_option_off),
+                LaunchOption("auto", R.string.param_option_lsfg_auto),
+                LaunchOption("2", R.string.param_option_lsfg_2),
+                LaunchOption("3", R.string.param_option_lsfg_3),
+                LaunchOption("4", R.string.param_option_lsfg_4),
+            ),
+            defaultValue = "0",
+            descriptionRes = R.string.param_desc_lsfg_multiplier,
+        ),
+        LaunchParam(
+            // run-gow3.sh 接受 0.25/0.5/0.75/1/1.0，其余回退到 1.0。
+            key = "lsfg_flow_scale", labelRes = R.string.param_lsfg_flow_scale, groupRes = R.string.param_group_frame_gen,
+            options = listOf(
+                LaunchOption("0.25", R.string.param_option_flow_025),
+                LaunchOption("0.5", R.string.param_option_flow_05),
+                LaunchOption("0.75", R.string.param_option_flow_075),
+                LaunchOption("1.0", R.string.param_option_flow_1),
+            ),
+            defaultValue = "1.0",
+            descriptionRes = R.string.param_desc_lsfg_flow_scale,
+        ),
+        LaunchParam(
+            key = "lsfg_performance", labelRes = R.string.param_lsfg_performance, groupRes = R.string.param_group_frame_gen,
+            options = listOf(
+                LaunchOption("0", R.string.param_option_off),
+                LaunchOption("1", R.string.param_option_on),
+            ),
+            defaultValue = "0",
+            descriptionRes = R.string.param_desc_lsfg_performance,
+        ),
         // skip_network_choice / debug_camera 不再提供：本仓库没有任何代码读取它们。
         LaunchParam(
             // launch_env.py：skip_intro=1 时选择内置补丁 "Skip Intro"；缺省（未写入）为关闭，与运行时一致。

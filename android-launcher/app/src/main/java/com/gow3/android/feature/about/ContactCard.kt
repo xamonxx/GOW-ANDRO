@@ -63,7 +63,7 @@ internal fun ContactCard() {
             .clip(RoundedCornerShape(14.dp))
             .background(LauncherColors.surface)
             .border(
-                BorderStroke(1.dp, LauncherColors.gold.copy(alpha = 0.5f)),
+                BorderStroke(1.dp, LauncherColors.accent.copy(alpha = 0.5f)),
                 RoundedCornerShape(14.dp)
             )
             .padding(16.dp),
@@ -71,7 +71,7 @@ internal fun ContactCard() {
     ) {
         Text(
             stringResource(R.string.contact_title),
-            color = LauncherColors.gold,
+            color = LauncherColors.accent,
             fontFamily = FontFamily.Serif,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,

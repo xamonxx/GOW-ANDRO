@@ -89,11 +89,14 @@ class AndroidBuildInputTests(unittest.TestCase):
     def test_launcher_provides_frame_generation_from_home(self):
         launcher = ROOT / 'android-launcher/app/src/main/java/com/gow3/android'
         screen = (launcher / 'ui/LauncherScreen.kt').read_text()
-        home = (launcher / 'feature/home/HomeScreen.kt').read_text()
-        card = (launcher / 'feature/home/FrameGenerationCard.kt').read_text()
-        manager = (launcher / 'data/LosslessDllManager.kt').read_text()
-        self.assertIn('HomeScreen', screen)
-        self.assertIn('FrameGenerationCard', home)
+        # Frame generation lives in the Performance tab's Frame Gen sub-tab now.
+        performance = (launcher / 'feature/performance/PerformanceScreen.kt').read_text(encoding='utf-8')
+        section = (launcher / 'feature/home/FrameGenerationSection.kt').read_text(encoding='utf-8')
+        card = (launcher / 'feature/home/FrameGenerationCard.kt').read_text(encoding='utf-8')
+        manager = (launcher / 'data/LosslessDllManager.kt').read_text(encoding='utf-8')
+        self.assertIn('PerformanceScreen', screen)
+        self.assertIn('FrameGenerationSection(', performance)
+        self.assertIn('FrameGenerationCard(', section)
         # The card renders the two provisioning actions through string resources, so assert the
         # resource keys in the Kotlin (not the literal text, which lives in res/values) — otherwise
         # a resource-based UI fails the test even though it is correct (4.5 复评).

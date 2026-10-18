@@ -156,21 +156,21 @@ internal class GameFolderManager(private val activity: Activity) {
         val panel = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), dp(22), dp(24), dp(24))
-            background = roundedBackground(0xff171411.toInt(), 0xffc6ad76.toInt(), 20)
+            background = roundedBackground(0xff171411.toInt(), 0xff38bdf8.toInt(), 20)
         }
         val eyebrow = TextView(activity).apply {
             text = if (isUpdate) activity.getString(R.string.folder_eyebrow_update)
             else activity.getString(R.string.folder_eyebrow_game)
             textSize = 11f
             letterSpacing = 0.18f
-            setTextColor(0xffc6ad76.toInt())
+            setTextColor(0xff38bdf8.toInt())
         }
         val title = TextView(activity).apply {
             text = if (isUpdate) activity.getString(R.string.folder_title_update)
             else activity.getString(R.string.folder_title_game)
             textSize = 22f
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(0xffe8dfc9.toInt())
+            setTextColor(0xffe6f1ff.toInt())
             setPadding(0, dp(7), 0, 0)
         }
         val message = TextView(activity).apply {
@@ -181,7 +181,7 @@ internal class GameFolderManager(private val activity: Activity) {
                 activity.getString(R.string.folder_message_game) +
                     (if (current != null) activity.getString(R.string.folder_current_selection_fmt, current) else "")
             textSize = 14f
-            setTextColor(0xff8e9097.toInt())
+            setTextColor(0xff8a9bb4.toInt())
             setLineSpacing(0f, 1.15f)
             setPadding(0, dp(12), 0, dp(20))
         }
@@ -192,8 +192,8 @@ internal class GameFolderManager(private val activity: Activity) {
             textSize = 13f
             letterSpacing = 0.08f
             setTypeface(typeface, Typeface.BOLD)
-            setTextColor(0xffe8dfc9.toInt())
-            background = roundedBackground(0xffb8172b.toInt(), 0xffc6ad76.toInt(), 12)
+            setTextColor(0xffe6f1ff.toInt())
+            background = roundedBackground(0xffb8172b.toInt(), 0xff38bdf8.toInt(), 12)
             setPadding(0, dp(15), 0, dp(15))
             isFocusable = true
         }

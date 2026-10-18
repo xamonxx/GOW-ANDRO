@@ -41,9 +41,10 @@ import com.gow3.android.data.SaveManager
 import com.gow3.android.feature.about.AboutScreen
 import com.gow3.android.feature.home.HomeScreen
 import com.gow3.android.feature.mods.ModsScreen
+import com.gow3.android.feature.performance.PerformanceScreen
 import com.gow3.android.ui.components.LauncherColors
 
-private enum class LauncherTab { HOME, MODS, ABOUT }
+private enum class LauncherTab { HOME, PERFORMANCE, MODS, ABOUT }
 
 @Composable
 internal fun LauncherScreen(
@@ -81,6 +82,7 @@ internal fun LauncherScreen(
             )
             when (tab) {
                 LauncherTab.HOME -> HomeScreen(onStartGame, losslessDlls, onGetFromSteam, onChooseGameFolder, onChooseUpdateFolder)
+                LauncherTab.PERFORMANCE -> PerformanceScreen(losslessDlls, onGetFromSteam)
                 LauncherTab.MODS -> ModsScreen()
                 LauncherTab.ABOUT -> AboutScreen(saves, logs, onChangeLanguage)
             }
@@ -103,11 +105,12 @@ private fun BottomNavigation(selectedTab: LauncherTab, onTabSelected: (LauncherT
                 .padding(horizontal = 20.dp, vertical = 12.dp)
                 .clip(RoundedCornerShape(28.dp))
                 .background(LauncherColors.navSurface)
-                .border(BorderStroke(1.dp, LauncherColors.gold.copy(alpha = 0.35f)), RoundedCornerShape(28.dp))
+                .border(BorderStroke(1.dp, LauncherColors.accent.copy(alpha = 0.35f)), RoundedCornerShape(28.dp))
                 .padding(4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             NavItem(LauncherTab.HOME, selectedTab == LauncherTab.HOME, stringResource(R.string.nav_home), "⌂", onTabSelected)
+            NavItem(LauncherTab.PERFORMANCE, selectedTab == LauncherTab.PERFORMANCE, stringResource(R.string.nav_performance), "⚡", onTabSelected)
 //        NavItem(LauncherTab.MODS, selectedTab == LauncherTab.MODS, "MOD & PATCH", "⚙", onTabSelected)
             NavItem(LauncherTab.ABOUT, selectedTab == LauncherTab.ABOUT, stringResource(R.string.nav_about), "ⓘ", onTabSelected)
         }
@@ -128,7 +131,7 @@ private fun RowScope.NavItem(
             .weight(1f)
             .height(48.dp)
             .clip(RoundedCornerShape(26.dp))
-            .background(if (selected) LauncherColors.crimson else Color.Transparent)
+            .background(if (selected) LauncherColors.primary else Color.Transparent)
             .clickable { onTabSelected(tab) },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,

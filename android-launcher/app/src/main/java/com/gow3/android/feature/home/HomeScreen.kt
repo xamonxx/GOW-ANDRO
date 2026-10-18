@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -37,14 +38,13 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.gow3.android.R
 import com.gow3.android.data.Gow3Ini
-import com.gow3.android.data.ImportResult
+import com.gow3.android.data.LaunchParams
+import com.gow3.android.data.PerformancePresets
 import com.gow3.android.data.LosslessDllManager
 import com.gow3.android.data.LosslessDllState
-import com.gow3.android.data.RemoveResult
 import com.gow3.android.feature.performance.DeviceMonitorCard
 import com.gow3.android.ui.components.LauncherColors
 import com.gow3.android.ui.components.ScreenColumn
-import com.gow3.android.ui.components.formatBytes
 import java.io.File
 
 @Composable
@@ -90,14 +90,6 @@ internal fun HomeScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    fun save(key: String, value: String) {
-        if (Gow3Ini.write(gow3IniFile(context), mapOf(key to value))) {
-            iniValues = iniValues + (key to value)
-        } else {
-            Toast.makeText(context, context.getString(R.string.settings_save_failed), Toast.LENGTH_SHORT).show()
-        }
-    }
-
     /** An advice's settings, written together. */
     fun applyAll(updates: Map<String, String>) {
         if (Gow3Ini.write(gow3IniFile(context), updates)) {
@@ -109,56 +101,52 @@ internal fun HomeScreen(
     }
 
     ScreenColumn(horizontalAlignment = Alignment.CenterHorizontally) {
-        Spacer(Modifier.height(36.dp))
-        Text(stringResource(R.string.title_god_of_war_iii), color = LauncherColors.textPrimary, fontFamily = FontFamily.Serif, fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
-        Text(stringResource(R.string.title_remastered), color = LauncherColors.textMuted, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 2.sp)
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(32.dp))
+        Text(stringResource(R.string.title_god_of_war_iii), color = LauncherColors.textPrimary, fontFamily = FontFamily.Serif, fontSize = 22.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+        Text(stringResource(R.string.title_remastered), color = LauncherColors.accent, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 2.sp)
+        Spacer(Modifier.height(24.dp))
         LaunchButton(onStartGame)
+        Spacer(Modifier.height(12.dp))
+        StatusStrip(iniValues, dllState is LosslessDllState.Installed)
         Spacer(Modifier.height(16.dp))
         DeviceMonitorCard()
         Spacer(Modifier.height(16.dp))
         SmartCards(iniValues, dllState is LosslessDllState.Installed, gameDir, resumeTick, ::applyAll)
-        LaunchParameters(gameDir, updateDir, iniValues, ::save, onChooseGameFolder, onChooseUpdateFolder)
-        Spacer(Modifier.height(16.dp))
-        FrameGenerationCard(
-            state = dllState,
-            notice = notice,
-            onImport = {
-                losslessDlls.launchPicker { result ->
-                    when (result) {
-                        is ImportResult.Success -> {
-                            refreshDll()
-                            toast(context.getString(R.string.home_imported_fmt, LosslessDllManager.FILE_NAME, formatBytes(result.state.sizeBytes)))
-                        }
-                        ImportResult.Cancelled -> refreshDll()
-                        is ImportResult.Failed -> toast(result.message)
-                    }
-                }
-            },
-            onSteam = {
-                // Steam 下载成功后（该构建不含 Steam 时则由 stub 自行提示）回到这里刷新，
-                // 让完成的下载无需重新进入页面即可显示。
-                onGetFromSteam { _, message ->
-                    refreshDll()
-                    toast(message)
-                }
-            },
-            onRemove = {
-                when (val result = losslessDlls.remove()) {
-                    is RemoveResult.Done -> {
-                        refreshDll()
-                        toast(
-                            if (result.gameFolderRemains)
-                                context.getString(R.string.home_removed_game_folder_copy)
-                            else
-                                context.getString(R.string.home_removed_fmt, LosslessDllManager.FILE_NAME),
-                        )
-                    }
-                    is RemoveResult.Failed -> toast(result.message)
-                }
-            },
-        )
+        GameFolderCard(gameDir, updateDir, onChooseGameFolder, onChooseUpdateFolder)
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+/** What the next start runs with: the preset (or custom), resolution, frame limit, Smart FPS. */
+@Composable
+private fun StatusStrip(ini: Map<String, String>, lsfgAvailable: Boolean) {
+    val preset = PerformancePresets.detect(ini, lsfgAvailable)
+    val chips = listOfNotNull(
+        preset?.let { presetName(it) } ?: stringResource(R.string.preset_custom),
+        LaunchParams.all.firstOrNull { it.key == "render_resolution" }?.let { param ->
+            LaunchParams.selectedOption(ini, param)?.let { stringResource(it.labelRes) } ?: LaunchParams.valueOf(ini, param)
+        },
+        LaunchParams.all.firstOrNull { it.key == "fps_limit" }?.let { param ->
+            val value = LaunchParams.valueOf(ini, param)
+            if (value == "0") stringResource(R.string.param_option_unlimited) else "$value FPS"
+        },
+        if (ini["thermal_guard"]?.trim() != "0") stringResource(R.string.status_smart_fps) else null,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), modifier = Modifier.fillMaxWidth()) {
+        chips.forEach { label ->
+            Text(
+                label,
+                color = LauncherColors.accentSoft,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(LauncherColors.navSurface)
+                    .border(BorderStroke(1.dp, LauncherColors.accent.copy(alpha = 0.4f)), RoundedCornerShape(50))
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+            )
+        }
     }
 }
 
@@ -180,8 +168,8 @@ private fun LaunchButton(onClick: () -> Unit) {
             .fillMaxWidth()
             .height(84.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(Brush.linearGradient(listOf(Color(0xFFB8172B), Color(0xFF8C0D1A), Color(0xFFB8172B))))
-            .border(BorderStroke(1.dp, LauncherColors.gold), RoundedCornerShape(12.dp))
+            .background(Brush.linearGradient(listOf(LauncherColors.primary, LauncherColors.primaryDeep, LauncherColors.primary)))
+            .border(BorderStroke(1.dp, LauncherColors.accentSoft), RoundedCornerShape(12.dp))
             .clickable(onClick = onClick)
             .padding(vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

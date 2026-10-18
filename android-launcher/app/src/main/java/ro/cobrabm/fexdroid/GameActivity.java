@@ -2,6 +2,7 @@ package ro.cobrabm.fexdroid;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -40,6 +41,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.ArrayDeque;
+import com.gow3.android.R;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -86,6 +88,13 @@ public final class GameActivity extends Activity {
     private float touchX, touchY;
     private boolean edgeGesture, imeOpen, imePolling;
     private final AtomicBoolean imeAnswered=new AtomicBoolean();
+
+    /** The launcher's language (com.gow3.android.data.LanguageManager, Indonesian by default). */
+    @Override protected void attachBaseContext(Context base) {
+        super.attachBaseContext(com.gow3.android.data.LanguageManager.wrap(base));
+    }
+    /** A string resource, formatted when arguments are given. */
+    private String s(int id,Object... args) { return args.length==0 ? getString(id) : getString(id,args); }
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
@@ -238,7 +247,7 @@ public final class GameActivity extends Activity {
                     // MainActivity owns the first-run game-folder check. Reaching this state means
                     // the launcher was bypassed or the selected folder was removed while away.
                     pendingHolder=h;
-                    error("Game folder is unavailable. Return to the launcher and choose it again.");
+                    error(s(R.string.game_folder_unavailable));
                 }
                 else if (!startingX) { startingX=true; worker.execute(() -> startX(h)); }
             }
@@ -254,7 +263,7 @@ public final class GameActivity extends Activity {
                 XInput.button(1,false);
             return true;
         });
-        status=text("Starting God of War III…",18,0xffc6ad76); status.setGravity(Gravity.CENTER);
+        status=text(s(R.string.game_starting),18,0xff38bdf8); status.setGravity(Gravity.CENTER);
         screen.addView(status,frame(-1,-1,Gravity.CENTER));
         status.setClickable(false);
 
@@ -269,8 +278,8 @@ public final class GameActivity extends Activity {
         screen.addView(hud,hudAt);
 
         handle=new View(this);
-        GradientDrawable grip=new GradientDrawable(); grip.setColor(0x80c6ad76); grip.setCornerRadius(dp(4));
-        handle.setBackground(grip); handle.setContentDescription("Open game menu");
+        GradientDrawable grip=new GradientDrawable(); grip.setColor(0x8038bdf8); grip.setCornerRadius(dp(4));
+        handle.setBackground(grip); handle.setContentDescription(s(R.string.game_menu_open));
         screen.addView(handle,frame(dp(4),dp(44),Gravity.LEFT|Gravity.CENTER_VERTICAL));
         handle.setOnClickListener(v -> openDrawer());
 
@@ -280,7 +289,7 @@ public final class GameActivity extends Activity {
 
         drawer=new LinearLayout(this); drawer.setOrientation(LinearLayout.VERTICAL);
         GradientDrawable panel=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-            new int[]{0xff1b1d24,0xff121318});
+            new int[]{0xff111a2b,0xff070b12});
         drawer.setBackground(panel);
         drawer.setElevation(dp(16)); drawer.setVisibility(View.GONE);
         drawerItems=new LinearLayout(this); drawerItems.setOrientation(LinearLayout.VERTICAL);
@@ -291,16 +300,16 @@ public final class GameActivity extends Activity {
         // A thin gold edge on the game side.
         LinearLayout body=new LinearLayout(this);
         body.addView(drawerScroll,new LinearLayout.LayoutParams(0,-1,1));
-        View edge=new View(this); edge.setBackgroundColor(0x55c6ad76);
+        View edge=new View(this); edge.setBackgroundColor(0x5538bdf8);
         body.addView(edge,new LinearLayout.LayoutParams(dp(1),-1));
         drawer.addView(body,new LinearLayout.LayoutParams(-1,0,1));
 
-        TextView hint=text("Swipe left or press A to return",12,0xff8e9097);
+        TextView hint=text(s(R.string.game_menu_hint),12,0xff8a9bb4);
         hint.setPadding(dp(10),dp(2),0,dp(6));
         drawerItems.addView(hint,new LinearLayout.LayoutParams(-1,-2));
 
-        section("Game");
-        resume=menuItem("ic_play","Resume game",null,() -> closeDrawer());
+        section(s(R.string.game_section_game));
+        resume=menuItem("ic_play",s(R.string.game_resume),null,() -> closeDrawer());
         /* Game settings 与 Cheats 两个入口已隐藏（对应 SettingsDialog.showGame()/showCheats() 也已
          * 注释掉）：它们写的 ini 键在本仓库的启动链路里没有消费方，作弊更是根本没装 hook——Android
          * 走 FEXCore JIT，probe.c 的 install_cheats() 被 `#if defined(GUEST_CPU_NATIVE)` 编译掉了。
@@ -314,17 +323,17 @@ public final class GameActivity extends Activity {
             new SettingsDialog(this,new File(BASE,"gow3.ini"),this::restartGame).showCheats();
         });
          */
-        menuItem("ic_refresh","Restart game","Unsaved progress is lost",() -> new AlertDialog.Builder(this)
-            .setTitle("Restart God of War III?").setMessage("Any unsaved progress will be lost.")
-            .setNegativeButton("Cancel",null).setPositiveButton("Restart",(dialog,which) -> restartGame()).show());
+        menuItem("ic_refresh",s(R.string.game_restart),s(R.string.game_unsaved_short),() -> new AlertDialog.Builder(this)
+            .setTitle(R.string.game_restart_title).setMessage(R.string.game_unsaved_lost)
+            .setNegativeButton(R.string.dialog_cancel,null).setPositiveButton(R.string.game_restart_button,(dialog,which) -> restartGame()).show());
 
-        section("Graphics");
+        section(s(R.string.game_section_graphics));
         // Graphics 入口只保留运行时真正消费的那几项：upscaler / preset / sharpen / sharpness /
         // show_fps / fps_limit。原来的 CPU 核心（thor_cpus）、特效（effect_*）、模型细节
         // （model_lod）在本仓库启动链路没有消费方，已在 SettingsDialog.show() 里注释掉。
         // fps_limit 的摘要取值域与 SettingsDialog.FPS_VALUES 和运行时 FPS_LIMITS
         // （30/60/120/240/0）对齐。
-        graphicsItem=menuItem("ic_tune","Graphics settings","",() -> {
+        graphicsItem=menuItem("ic_tune",s(R.string.game_graphics_settings),"",() -> {
             closeDrawer();
             new SettingsDialog(this,new File(BASE,"gow3.ini"),this::restartGame).show();
         });
@@ -340,39 +349,39 @@ public final class GameActivity extends Activity {
                     () -> lsfgMultiplier(currentFpsCap()));
         });
 
-        hudItem=menuItem("ic_tune",getString(com.gow3.android.R.string.hud_menu_title),"",() -> {
+        hudItem=menuItem("ic_tune",s(R.string.hud_menu_title),"",() -> {
             boolean enabled=!hudEnabled();
             writeSetting("hud_monitor",enabled ? "1" : "0");
             hud.setVisibility(enabled ? View.VISIBLE : View.GONE);
             closeDrawer();
         });
 
-        section("Controls");
-        controllerItem=menuItem("ic_gamepad","On-screen controller","",() -> {
+        section(s(R.string.game_section_controls));
+        controllerItem=menuItem("ic_gamepad",s(R.string.game_controller),"",() -> {
             boolean enabled=!controllerEnabled();
             getSharedPreferences("gow3",MODE_PRIVATE).edit().putBoolean("controller_overlay",enabled).apply();
             controllerOverlay.release();
             closeDrawer();
         });
-        menuItem("ic_edit","Edit controller layout","Drag and resize the buttons",() -> {
+        menuItem("ic_edit",s(R.string.game_controller_edit),s(R.string.game_controller_edit_detail),() -> {
             getSharedPreferences("gow3",MODE_PRIVATE).edit().putBoolean("controller_overlay",true).apply();
             closeDrawer();
             controllerOverlay.edit(null);
         });
-        menuItem("ic_restore","Reset controller layout",null,() -> {
+        menuItem("ic_restore",s(R.string.game_controller_reset),null,() -> {
             controllerOverlay.resetLayout();
             closeDrawer();
         });
 
-        menuItem("ic_exit","Quit game",null,() -> new AlertDialog.Builder(this)
-            .setTitle("Quit God of War III?").setMessage("Any unsaved progress will be lost.")
-            .setNegativeButton("Cancel",null).setPositiveButton("Quit",(dialog,which) -> finish()).show());
+        menuItem("ic_exit",s(R.string.game_quit),null,() -> new AlertDialog.Builder(this)
+            .setTitle(R.string.game_quit_title).setMessage(R.string.game_unsaved_lost)
+            .setNegativeButton(R.string.dialog_cancel,null).setPositiveButton(R.string.game_quit_button,(dialog,which) -> finish()).show());
 
         // The version, pinned under the scrolling menu.
         String version="";
         try { version=" "+getPackageManager().getPackageInfo(getPackageName(),0).versionName; }
         catch (Exception ignored) {}
-        TextView about=text("God of War III for Android"+version,12,0xff8e9097);
+        TextView about=text(s(R.string.about_title)+version,12,0xff8a9bb4);
         about.setPadding(dp(24),dp(8),dp(14),dp(14));
         drawer.addView(about,new LinearLayout.LayoutParams(-1,-2));
         screen.addView(drawer,frame(dp(320),-1,Gravity.LEFT));
@@ -380,13 +389,13 @@ public final class GameActivity extends Activity {
     }
 
     private void restartGame() {
-        closeDrawer(); status.setText("Restarting God of War III…"); status.setVisibility(View.VISIBLE);
+        closeDrawer(); status.setText(s(R.string.game_restarting)); status.setVisibility(View.VISIBLE);
         worker.execute(() -> { stopGame(); startGame(); });
     }
 
     /** A small gold heading above a group of menu rows. */
     private void section(String name) {
-        TextView t=text(name.toUpperCase(java.util.Locale.ROOT),11,0xffc6ad76);
+        TextView t=text(name.toUpperCase(java.util.Locale.ROOT),11,0xff38bdf8);
         t.setLetterSpacing(0.15f); t.setTypeface(Typeface.DEFAULT_BOLD);
         t.setPadding(dp(10),dp(16),0,dp(6));
         drawerItems.addView(t,new LinearLayout.LayoutParams(-1,-2));
@@ -399,9 +408,9 @@ public final class GameActivity extends Activity {
         row.setGravity(Gravity.CENTER_VERTICAL); row.setPadding(dp(10),dp(8),dp(10),dp(8));
         row.setFocusable(true); row.setClickable(true); row.setTag(action); row.setOnClickListener(v -> ((Runnable)row.getTag()).run());
         android.graphics.drawable.StateListDrawable states=new android.graphics.drawable.StateListDrawable();
-        GradientDrawable lit=new GradientDrawable(); lit.setColor(0x33c6ad76); lit.setCornerRadius(dp(10));
-        lit.setStroke(dp(1),0x99c6ad76);
-        GradientDrawable pressed=new GradientDrawable(); pressed.setColor(0x44c6ad76); pressed.setCornerRadius(dp(10));
+        GradientDrawable lit=new GradientDrawable(); lit.setColor(0x3338bdf8); lit.setCornerRadius(dp(10));
+        lit.setStroke(dp(1),0x9938bdf8);
+        GradientDrawable pressed=new GradientDrawable(); pressed.setColor(0x4438bdf8); pressed.setCornerRadius(dp(10));
         states.addState(new int[]{android.R.attr.state_pressed},pressed);
         states.addState(new int[]{android.R.attr.state_focused},lit);
         states.addState(new int[]{},new android.graphics.drawable.ColorDrawable(0));
@@ -414,10 +423,10 @@ public final class GameActivity extends Activity {
         row.addView(image,ip);
 
         LinearLayout texts=new LinearLayout(this); texts.setOrientation(LinearLayout.VERTICAL);
-        TextView name=text(title,15,0xffe8dfc9);
+        TextView name=text(title,15,0xffe6f1ff);
         texts.addView(name);
         if (detail!=null) {
-            TextView second=text(detail,12,0xff8e9097); second.setTag("detail");
+            TextView second=text(detail,12,0xff8a9bb4); second.setTag("detail");
             texts.addView(second);
         }
         row.addView(texts,new LinearLayout.LayoutParams(0,-2,1));
@@ -452,26 +461,26 @@ public final class GameActivity extends Activity {
         if ("1".equals(setting("cheat_item"))) cheats.add("infinite items");
         setDetail(cheatsItem,cheats.isEmpty() ? "Off" : String.join(" · ",cheats));
          */
-        String upscaler="off".equals(setting("upscaler")) ? "No upscaling" : "FSR 3.1";
+        String upscaler="off".equals(setting("upscaler")) ? s(R.string.game_no_upscaling) : "FSR 3.1";
         String limit=setting("fps_limit");
         // 取值域与 SettingsDialog.FPS_VALUES 一致：只有 30/60/120/240 会按原值显示，0 是"不限制"，
         // 其余（键缺失、旧版遗留的 40/45）运行时 ParseFpsLimit 都当 0，所以回退显示 30。
-        setDetail(graphicsItem,upscaler+" · "+("0".equals(limit) ? "no FPS limit"
-            : (limit==null || !limit.matches("30|60|120|240") ? "30" : limit)+" FPS limit"));
+        setDetail(graphicsItem,upscaler+" · "+("0".equals(limit) ? s(R.string.game_no_fps_limit)
+            : s(R.string.game_fps_limit_fmt,limit==null || !limit.matches("30|60|120|240") ? "30" : limit)));
         String lsfg=setting("lsfg_multiplier");
         int lsfgFrames=lsfgMultiplier(currentFpsCap());
         boolean lsfgOn=lsfgFrames>0;
-        if ("auto".equals(lsfg)) lsfg="auto "+lsfgFrames;
+        if ("auto".equals(lsfg)) lsfg=s(R.string.game_lsfg_auto_fmt,lsfgFrames);
         // 没导入 Lossless.dll 就开不了插帧：lsfg-vk 只加载玩家自带的 DLL，run-gow3.sh 的
         //  preflight 找不到它时会静默不开 layer（只剩 30 FPS），玩家看不出是自己漏了导入。
         //  所以直接把这一行置灰不可点，并说明去 Home 页导入，而不是让它"看着能开却不生效"。
         boolean dllPresent=hasFrameGenDll();
         setRowEnabled(losslessItem,dllPresent);
-        setDetail(losslessItem,!dllPresent ? "Import Lossless.dll on the Home page first"
-            : lsfgOn ? lsfg+"× frames · flow "
-            +(setting("lsfg_flow_scale")==null ? "1.0" : setting("lsfg_flow_scale")) : "Off");
-        setDetail(controllerItem,controllerEnabled() ? "On" : "Off");
-        setDetail(hudItem,hudEnabled() ? "On" : "Off");
+        setDetail(losslessItem,!dllPresent ? s(R.string.game_lsfg_needs_dll)
+            : lsfgOn ? s(R.string.game_lsfg_detail_fmt,lsfg,
+                setting("lsfg_flow_scale")==null ? "1.0" : setting("lsfg_flow_scale")) : s(R.string.state_off));
+        setDetail(controllerItem,s(controllerEnabled() ? R.string.state_on : R.string.state_off));
+        setDetail(hudItem,s(hudEnabled() ? R.string.state_on : R.string.state_off));
     }
 
     // ---- Performance monitor (HUD): FPS, temperatures, GPU, memory ----
@@ -522,10 +531,10 @@ public final class GameActivity extends Activity {
 
         String fps=displayFps<0 ? "—" : String.valueOf(displayFps);
         String[] lines={
-            "FPS "+fps+(thermalCapped ? "  · "+getString(com.gow3.android.R.string.hud_capped) : ""),
-            getString(com.gow3.android.R.string.hud_temp)+" "+celsius(batteryC)+"  SoC "+celsius(socC),
+            "FPS "+fps+(thermalCapped ? "  · "+s(R.string.hud_capped) : ""),
+            s(R.string.hud_temp)+" "+celsius(batteryC)+"  SoC "+celsius(socC),
             "GPU "+(gpuBusy<0 ? "—" : gpuBusy+"%")+"  "+(gpuMhz<0 ? "" : gpuMhz+" MHz"),
-            "RAM "+gigabytes(gameMb)+" "+getString(com.gow3.android.R.string.hud_game)+"  "
+            "RAM "+gigabytes(gameMb)+" "+s(R.string.hud_game)+"  "
                 +gigabytes((memory.totalMem-memory.availMem)>>20)+"/"+gigabytes(memory.totalMem>>20),
         };
         int fpsColor=displayFps<0 ? HudOverlay.TEXT : displayFps>=55 || (thermalCapped && displayFps>=28)
@@ -871,18 +880,16 @@ public final class GameActivity extends Activity {
                 android.Manifest.permission.WRITE_EXTERNAL_STORAGE},REQUEST_STORAGE);
             return;
         }
-        status.setText(change ? "Choose the God of War III game folder." :
-            "Choose your God of War III game folder (e.g. CUSA01740, the folder with eboot.bin).");
+        status.setText(change ? s(R.string.game_choose_folder_change) : s(R.string.game_choose_folder_first));
         status.setVisibility(View.VISIBLE);
-        new AlertDialog.Builder(this).setTitle("God of War III game folder")
-            .setMessage("Select the extracted game folder (e.g. CUSA01740 or CUSA00900, which contains eboot.bin) or the folder "
-                +"that holds it, in your phone's storage."+(gameDir!=null ? "\n\nCurrent: "+gameDir : ""))
-            .setPositiveButton("Choose folder",(d,w) -> {
+        new AlertDialog.Builder(this).setTitle(R.string.game_folder_dialog_title)
+            .setMessage(s(R.string.folder_message_game)+(gameDir!=null ? s(R.string.folder_current_selection_fmt,gameDir) : ""))
+            .setPositiveButton(R.string.folder_choose_game,(d,w) -> {
                 Intent pick=new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
                 try { startActivityForResult(pick,REQUEST_FOLDER); }
-                catch (Exception ex) { error("No folder picker: "+ex); }
+                catch (Exception ex) { error(s(R.string.no_folder_picker_fmt,ex.toString())); }
             })
-            .setNegativeButton(change ? "Cancel" : "Quit",(d,w) -> { if (!change) finish(); })
+            .setNegativeButton(change ? R.string.dialog_cancel : R.string.game_quit_button,(d,w) -> { if (!change) finish(); })
             .setCancelable(change).show();
     }
     @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] results) {
@@ -890,7 +897,7 @@ public final class GameActivity extends Activity {
         if (code!=REQUEST_STORAGE) return;
         if (results.length>0 && results[0]==android.content.pm.PackageManager.PERMISSION_GRANTED) {
             if (hasGame()) startPending(); else askGameFolder(false);
-        } else error("God of War III needs storage access to read the game folder.");
+        } else error(s(R.string.storage_permission_message));
     }
     @Override protected void onActivityResult(int code,int result,Intent data) {
         super.onActivityResult(code,result,data);
@@ -900,15 +907,15 @@ public final class GameActivity extends Activity {
         if (dir!=null && !isGame(dir))
             for (String serial : SERIALS) if (isGame(new File(dir,serial))) { dir=new File(dir,serial); break; }
         if (!isGame(dir)) {
-            new AlertDialog.Builder(this).setTitle("Not a God of War III folder")
-                .setMessage((dir==null ? "That location" : dir.getPath())+" has no eboot.bin.")
-                .setPositiveButton("Choose again",(d,w) -> askGameFolder(gameDir!=null)).show();
+            new AlertDialog.Builder(this).setTitle(R.string.not_a_game_folder)
+                .setMessage(dir==null ? s(R.string.no_eboot) : s(R.string.no_eboot_path_fmt,dir.getPath()))
+                .setPositiveButton(R.string.choose_again,(d,w) -> askGameFolder(gameDir!=null)).show();
             return;
         }
         boolean changed=gameDir!=null && !gameDir.equals(dir.getPath());
         gameDir=dir.getPath();
         getSharedPreferences("gow3",MODE_PRIVATE).edit().putString("game_dir",gameDir).apply();
-        status.setText("Starting God of War III…");
+        status.setText(s(R.string.game_starting));
         if (changed && game!=null) restartGame(); else startPending();
     }
     /** A storage folder of the picker (tree document "primary:Path" or "XXXX-XXXX:Path") as a path. */
@@ -965,10 +972,10 @@ public final class GameActivity extends Activity {
         field.setFilters(new InputFilter[]{new InputFilter.LengthFilter(max)});
         field.setImeOptions(EditorInfo.IME_ACTION_DONE | EditorInfo.IME_FLAG_NO_EXTRACT_UI);
         FrameLayout box=new FrameLayout(this); box.setPadding(dp(20),dp(8),dp(20),0); box.addView(field);
-        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title.isEmpty() ? "Enter text" : title)
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle(title.isEmpty() ? s(R.string.game_enter_text) : title)
             .setView(box)
-            .setPositiveButton("OK",(d,w) -> answerIme(true,field.getText().toString()))
-            .setNegativeButton("Cancel",(d,w) -> answerIme(false,""))
+            .setPositiveButton(R.string.dialog_ok,(d,w) -> answerIme(true,field.getText().toString()))
+            .setNegativeButton(R.string.dialog_cancel,(d,w) -> answerIme(false,""))
             .setOnCancelListener(d -> answerIme(false,"")).create();
         field.setOnEditorActionListener((v,action,event) -> {
             if (action!=EditorInfo.IME_ACTION_DONE) return false;
@@ -1131,11 +1138,10 @@ public final class GameActivity extends Activity {
                         String last=tail.isEmpty() ? "" : "\n\n"+String.join("\n",tail);
                         // run-gow3.sh exits 4 when Vulkan/Turnip cannot initialize: the driver
                         // failure must not be reported as validated texture integrity.
-                        if (code==4) error("Graphics initialization failed (Vulkan/Turnip). See logs/android-game.log."+last);
+                        if (code==4) error(s(R.string.game_error_vulkan)+last);
                         // 127: the shell found no such command, or the loader could not load a library.
-                        else if (code==127) error("Game stopped (127): a runtime program or library is missing."
-                            +" See logs/android-game.log."+last);
-                        else error("Game stopped ("+code+"). Open the menu to restart."+last);
+                        else if (code==127) error(s(R.string.game_error_127)+last);
+                        else error(s(R.string.game_error_exit_fmt,code)+last);
                     }
                 } catch (Exception ex) {
                     // A restart (settings, cheats) kills this process on purpose: its reader is
@@ -1166,10 +1172,10 @@ public final class GameActivity extends Activity {
     }
     private void offerAccurateCpu() {
         new AlertDialog.Builder(this)
-            .setTitle(com.gow3.android.R.string.crash_title)
-            .setMessage(com.gow3.android.R.string.crash_message)
-            .setNegativeButton(com.gow3.android.R.string.crash_keep,null)
-            .setPositiveButton(com.gow3.android.R.string.crash_switch,(dialog,which) -> {
+            .setTitle(R.string.crash_title)
+            .setMessage(R.string.crash_message)
+            .setNegativeButton(R.string.crash_keep,null)
+            .setPositiveButton(R.string.crash_switch,(dialog,which) -> {
                 writeSetting("cpu_mode","accurate");
                 restartGame();
             }).show();

@@ -46,11 +46,11 @@ internal fun FrameGenerationCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(LauncherColors.surface)
-            .border(BorderStroke(1.dp, LauncherColors.gold.copy(alpha = 0.5f)), RoundedCornerShape(14.dp))
+            .border(BorderStroke(1.dp, LauncherColors.accent.copy(alpha = 0.5f)), RoundedCornerShape(14.dp))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(stringResource(R.string.frame_gen_title), color = LauncherColors.gold, fontFamily = FontFamily.Serif, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
+        Text(stringResource(R.string.frame_gen_title), color = LauncherColors.accent, fontFamily = FontFamily.Serif, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 LosslessDllManager.FILE_NAME,
@@ -96,7 +96,7 @@ internal fun FrameGenerationCard(
             ActionButton(stringResource(R.string.frame_gen_remove), false, Modifier.fillMaxWidth(), onRemove)
         }
         if (notice != null) {
-            Text(notice, color = LauncherColors.gold, fontSize = 11.sp, lineHeight = 16.sp)
+            Text(notice, color = LauncherColors.accent, fontSize = 11.sp, lineHeight = 16.sp)
         }
         Text(
             stringResource(R.string.frame_gen_footer),
