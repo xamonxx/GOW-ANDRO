@@ -221,4 +221,25 @@
     <string name="folder_choose_update">CHOOSE UPDATE FOLDER</string>
     <string name="folder_choose_game">CHOOSE GAME FOLDER</string>
     <string name="no_folder_picker_fmt">No folder picker: %1$s</string>
+    <string name="crash_title">The game keeps stopping</string>
+    <string name="crash_message">The last two starts ended in a crash. The fast CPU mode skips x86 memory-order emulation, which some game threads need. Switch to the accurate mode and restart?</string>
+    <string name="crash_switch">Switch &amp; restart</string>
+    <string name="crash_keep">Not now</string>
+    <string name="session_title">LAST SESSION</string>
+    <string name="session_summary_fmt">%1$s min · avg %2$s FPS · 1%% low %3$s · max %4$s</string>
+    <string name="session_hot_fmt">%1$s s hot (severe), Smart FPS capped %2$s×</string>
+    <string name="advice_title">SMART ADVICE</string>
+    <string name="advice_apply">APPLY</string>
+    <string name="advice_applied">Applied. Takes effect at the next start.</string>
+    <string name="advice_recommended_fmt">Recommended for this phone: %1$s</string>
+    <string name="advice_overheated">The phone ran hot for a long time last session. The Cool &amp; steady preset holds a smooth 30 FPS (60 on screen with frame generation).</string>
+    <string name="advice_low_fps">The game could not hold 60 FPS although the phone stayed cool. A 480p render resolution lightens the GPU.</string>
+    <string name="advice_lsfg_high">The frame generation multiplier is higher than your screen can show. Auto picks the one that fits.</string>
+    <string name="advice_usb">The game is on a USB drive. Copy it to the internal storage for faster loading and fewer stutters.</string>
+    <string name="advice_crashes">The last two starts crashed with the fast CPU mode. The accurate mode is slower but safer.</string>
+    <string name="advice_battery_low" formatted="false">The battery is below 20%. The Cool &amp; steady preset uses less power.</string>
+    <string name="advice_charging_hot">The battery is hot while charging. Use bypass charging or unplug while playing.</string>
+    <string name="preset_max">Max performance</string>
+    <string name="preset_balanced">Balanced</string>
+    <string name="preset_cool">Cool &amp; steady</string>
 </resources>

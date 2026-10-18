@@ -93,12 +93,14 @@ class FpsLimitOptionDomain(unittest.TestCase):
         self.assertNotIn('40|45', refresh)
 
     def test_refresh_rate_target_uses_the_same_fps_domain(self):
-        pick = _body_from(_read(ACTIVITY), 'private void pickRefreshRate()')
-        for limit in FPS_LIMITS[:-1]:
-            self.assertIn('"%s".equals(limit)' % limit, pick,
-                          'fps_limit=%s must reach the refresh-rate target' % limit)
-        self.assertNotIn('"40".equals(limit)', pick)
-        self.assertNotIn('"45".equals(limit)', pick)
+        # The refresh-rate target follows currentFpsCap(), which reads fps_limit through fpsLimit():
+        # every listed limit must reach it, 40/45 (ParseFpsLimit: unlimited) must not.
+        activity = _read(ACTIVITY)
+        pick = _body_from(activity, 'private void pickRefreshRate()')
+        self.assertIn('currentFpsCap()', pick)
+        parse = _method(activity, 'private int fpsLimit()', 'private int currentFpsCap()')
+        self.assertIn('limit.matches("%s")' % '|'.join(FPS_LIMITS[:-1]), parse)
+        self.assertNotIn('40|45', parse)
 
 
 class LosslessFlowScaleDomain(unittest.TestCase):

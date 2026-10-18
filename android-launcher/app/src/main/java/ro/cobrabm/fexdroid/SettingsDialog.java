@@ -58,8 +58,10 @@ final class SettingsDialog {
     };
     private static final String[] UPSCALER_VALUES={"off","fsr3"};
     private static final String[] UPSCALER_NAMES={"Off (render at 1280×720)","FSR 3.1"};
-    private static final String[] LSFG_VALUES={"0","2","3","4"};
-    private static final String[] LSFG_NAMES={"Off","2× frames","3× frames","4× frames"};
+    // auto: GameActivity picks the multiplier that fits the display (LsfgAuto), also when Smart FPS
+    // caps the game at 30.
+    private static final String[] LSFG_VALUES={"0","auto","2","3","4"};
+    private static final String[] LSFG_NAMES={"Off","Auto (fits the screen)","2× frames","3× frames","4× frames"};
     // flow scale 取值域照 run-gow3.sh 的白名单（0.25|0.5|0.75|1|1.0）：此前缺 0.25 这一档，这里
     // 追加到末尾，默认值 "1.0" 的索引不变，writeLsfgProfile 原样写值、无需改动。
     private static final String[] LSFG_FLOW_VALUES={"1.0","0.75","0.5","0.25"};
@@ -372,7 +374,8 @@ final class SettingsDialog {
      *  flow scale 已按 run-gow3.sh 的白名单补齐 0.25 档（见 LSFG_FLOW_VALUES）。这是本移植唯一的
      *  帧生成路径：FSR 3.1 帧生成（frame_generation=1）没有接通，shadps4 无 GOW3_FRAME_GEN 消费者，
      *  所以这里不要再加一个"FSR 帧生成"开关。 */
-    void showLossless(java.util.function.BooleanSupplier gameRunning,Runnable onLiveApplied) {
+    void showLossless(java.util.function.BooleanSupplier gameRunning,Runnable onLiveApplied,
+                      java.util.function.IntSupplier autoMultiplier) {
         load();
         final File live=new File(file.getParentFile(),"lsfg-vk.toml");
         LinearLayout box=new LinearLayout(activity); box.setOrientation(LinearLayout.VERTICAL);
@@ -406,7 +409,9 @@ final class SettingsDialog {
                 changed.put("lsfg_flow_scale",LSFG_FLOW_VALUES[Math.max(0,checkedIndex(lsfgFlow))]);
                 changed.put("lsfg_performance",lsfgPerformance.isChecked() ? "1" : "0");
                 if (gameRunning.getAsBoolean() && live.isFile()) {
-                    boolean ok=save(changed) && writeLsfgProfile(live,"0".equals(multiplier) ? "1" : multiplier,
+                    String frames="0".equals(multiplier) ? "1"
+                        : "auto".equals(multiplier) ? String.valueOf(Math.max(1,autoMultiplier.getAsInt())) : multiplier;
+                    boolean ok=save(changed) && writeLsfgProfile(live,frames,
                         changed.get("lsfg_flow_scale"),lsfgPerformance.isChecked());
                     android.widget.Toast.makeText(activity,ok ? "Lossless Scaling: applied"
                         : "Lossless Scaling: could not apply",android.widget.Toast.LENGTH_SHORT).show();
@@ -423,7 +428,7 @@ final class SettingsDialog {
 
     /** Rewrites the profile values of the running layer's config (written whole, then renamed:
      *  lsfg-vk reloads on the rename). */
-    private static boolean writeLsfgProfile(File config,String multiplier,String flowScale,boolean performance) {
+    static boolean writeLsfgProfile(File config,String multiplier,String flowScale,boolean performance) {
         List<String> out=new ArrayList<>();
         try (BufferedReader r=new BufferedReader(new InputStreamReader(new FileInputStream(config),"UTF-8"))) {
             for (String line; (line=r.readLine())!=null;) {

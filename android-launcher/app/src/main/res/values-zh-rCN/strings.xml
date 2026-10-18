@@ -221,4 +221,25 @@
     <string name="folder_choose_update">选择升级补丁目录</string>
     <string name="folder_choose_game">选择游戏目录</string>
     <string name="no_folder_picker_fmt">没有目录选择器：%1$s</string>
+    <string name="crash_title">游戏频繁停止</string>
+    <string name="crash_message">最近两次启动都以崩溃结束。快速 CPU 模式跳过了某些游戏线程需要的 x86 内存顺序模拟。切换到精确模式并重启？</string>
+    <string name="crash_switch">切换并重启</string>
+    <string name="crash_keep">暂不</string>
+    <string name="session_title">上一局</string>
+    <string name="session_summary_fmt">%1$s 分钟 · 平均 %2$s FPS · 1%% 低帧 %3$s · 最高 %4$s</string>
+    <string name="session_hot_fmt">高温（严重）%1$s 秒，智能帧率限制 %2$s 次</string>
+    <string name="advice_title">智能建议</string>
+    <string name="advice_apply">应用</string>
+    <string name="advice_applied">已应用，下次启动生效。</string>
+    <string name="advice_recommended_fmt">本机推荐：%1$s</string>
+    <string name="advice_overheated">上一局手机长时间过热。“低温稳定”预设可稳定 30 FPS（开启插帧时屏幕上为 60）。</string>
+    <string name="advice_low_fps">手机不热但游戏达不到 60 FPS。480p 渲染分辨率可减轻 GPU 负担。</string>
+    <string name="advice_lsfg_high">插帧倍率超出了屏幕能显示的刷新率。自动模式会选择合适的倍率。</string>
+    <string name="advice_usb">游戏在 U 盘上。复制到内部存储可加快加载、减少卡顿。</string>
+    <string name="advice_crashes">最近两次启动在快速 CPU 模式下崩溃。精确模式较慢但更稳定。</string>
+    <string name="advice_battery_low" formatted="false">电量低于 20%。“低温稳定”预设更省电。</string>
+    <string name="advice_charging_hot">充电时电池过热。请使用旁路充电或拔掉充电器再玩。</string>
+    <string name="preset_max">极致性能</string>
+    <string name="preset_balanced">均衡</string>
+    <string name="preset_cool">低温稳定</string>
 </resources>

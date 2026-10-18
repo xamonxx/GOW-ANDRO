@@ -72,13 +72,20 @@ class LsfgPreflightTests(unittest.TestCase):
 
     def test_launcher_only_accepts_the_multipliers_the_script_accepts(self):
         activity = _read(GAME_ACTIVITY)
+        # lsfgMultiplier() resolves gow3.ini: 2-4 as set, "auto" through LsfgAuto (2-4 or 0).
+        resolve = activity[activity.index('private int lsfgMultiplier(int fps)'):
+                           activity.index('private float[] displayRates()')]
         for multiplier in ('2', '3', '4'):
-            self.assertIn(f'"{multiplier}".equals(lsfg)', activity)
+            self.assertIn(f'"{multiplier}".equals(value)', resolve)
+        self.assertIn('"auto".equals(value) ? LsfgAuto.pick(', resolve)
         # 0/1 and garbage must be rejected by the launcher's launchability check.
         preflight = activity[activity.index('private boolean lsfgLaunchable()'):
                              activity.index('private void pickRefreshRate()')]
-        self.assertNotIn('"1".equals(lsfg)', preflight)
-        self.assertNotIn('"0".equals(lsfg)', preflight)
+        self.assertIn('lsfgMultiplier(currentFpsCap())==0', preflight)
+        self.assertNotIn('"1".equals(value)', resolve)
+        self.assertNotIn('"0".equals(value)', resolve)
+        # The script takes the launcher's resolved multiplier for "auto".
+        self.assertIn('lsfg=${GOW3_LSFG_MULTIPLIER:-$(setting lsfg_multiplier)}', _read(SCRIPT))
 
     def test_launcher_requires_both_layer_files(self):
         activity = _read(GAME_ACTIVITY)

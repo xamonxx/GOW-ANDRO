@@ -126,7 +126,8 @@ lsfg_fallback_marker="$base/lsfg-fallback.marker"
 # Scaling (Steam), next to the game folder or in gow3port/. Its messages (lsfg-vk: ...) go to the
 # game log. FSR 3.1 frame generation is not wired on this tree (shadps4 has no GOW3_FRAME_GEN
 # consumer); LSFG is the only frame-generation path.
-lsfg=$(setting lsfg_multiplier)
+# lsfg_multiplier=auto: the launcher passes the multiplier that fits the display (GOW3_LSFG_MULTIPLIER).
+lsfg=${GOW3_LSFG_MULTIPLIER:-$(setting lsfg_multiplier)}
 case $lsfg in 2|3|4) ;; *) lsfg= ;; esac
 lsfg_layer="$base/arm64/lsfg"
 # 层可用性 preflight：manifest 和 liblsfg-vk.so 缺一不可（RuntimeInstaller 正常会验证这两个文件，

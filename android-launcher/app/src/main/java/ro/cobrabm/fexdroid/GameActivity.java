@@ -125,8 +125,6 @@ public final class GameActivity extends Activity {
         @Override public void run() {
             if (destroyed) return;
             logThermal("tick");
-            android.os.PowerManager power=(android.os.PowerManager)getSystemService(POWER_SERVICE);
-            if (power!=null) thermalGuard(power.getCurrentThermalStatus());
             main.postDelayed(this,30000);
         }
     };
@@ -136,42 +134,58 @@ public final class GameActivity extends Activity {
         if (power==null) return;
         android.os.PowerManager.OnThermalStatusChangedListener listener=status -> {
             logThermal("status changed");
-            thermalGuard(status);
+            smartTick(status,Float.NaN);  // SEVERE caps at once, without waiting for the next sample
         };
         power.addThermalStatusListener(listener);
         thermalListener=listener;
         main.postDelayed(thermalTick,30000);
     }
-    /** Thermal guard (gow3.ini thermal_guard, default on), on the main thread: the game's frame limit
-     *  drops to 30 while the phone is SEVERE or hotter and comes back once it is LIGHT or cooler.
+    /** Smart FPS (gow3.ini thermal_guard, default on), on the main thread while the game runs: the
+     *  game's frame limit drops to 30 when the phone is SEVERE, when the 10 s forecast says it is
+     *  about to throttle, or when it cannot hold more than 50 FPS anyway (SmartFps has the rules).
      *  gow3port/thermal.cap is read live by the present thread (run-gow3.sh GOW3_THERMAL_CAP_FILE). */
-    private boolean thermalCapped;
-    private static final int THERMAL_CAP_ON=3 /* SEVERE */, THERMAL_CAP_OFF=1 /* LIGHT */;
-    private void thermalGuard(int status) {
-        boolean enabled=!"0".equals(setting("thermal_guard"));
-        if (thermalCapped && (!enabled || status<=THERMAL_CAP_OFF)) setThermalCap(false);
-        else if (!thermalCapped && enabled && status>=THERMAL_CAP_ON) setThermalCap(true);
+    private final SmartFps smartFps=new SmartFps();
+    private volatile boolean thermalCapped;
+    private void smartTick(int status,float forecast) {
+        Process running=game;
+        boolean enabled=!"0".equals(setting("thermal_guard")) && running!=null && running.isAlive();
+        boolean want=enabled && smartFps.update(SystemClock.elapsedRealtime(),status,forecast,displayFps,fpsLimit());
+        if (!enabled) smartFps.reset();
+        if (want!=thermalCapped) setThermalCap(want,forecast);
     }
-    private void setThermalCap(boolean on) {
+    private void setThermalCap(boolean on,float forecast) {
         // Never creates gow3port: before the first install there is no game to cap.
         if (!new File(BASE).isDirectory()) return;
         File cap=new File(BASE,"thermal.cap");
         try {
-            if (on) { try (PrintWriter out=new PrintWriter(cap)) { out.println("30"); } }
+            if (on) { try (PrintWriter out=new PrintWriter(cap)) { out.println(SmartFps.CAP); } }
             else if (cap.exists() && !cap.delete()) throw new java.io.IOException("cannot delete");
             thermalCapped=on;
-            logThermal(on ? "guard: frame limit capped at 30" : "guard: cap released");
+            if (on) session.capped();
+            logThermal(on ? String.format(Locale.ROOT,"Smart FPS: cap %d (%s, forecast %.2f)",SmartFps.CAP,
+                    smartFps.reason(),forecast) : "Smart FPS: released");
+            followCapWithLsfg();
         } catch (Exception ex) {
-            logThermal("guard: cannot update "+cap+": "+ex.getMessage());
+            logThermal("Smart FPS: cannot update "+cap+": "+ex.getMessage());
         }
     }
-    /** Before each start: no cap left from an earlier session, then the current state decides. */
+    /** Before each start: no cap left from an earlier session; the samples decide again. */
     private void resetThermalGuard() {
         new File(BASE,"thermal.cap").delete();
         thermalCapped=false;
-        if (Build.VERSION.SDK_INT<29) return;
-        android.os.PowerManager power=(android.os.PowerManager)getSystemService(POWER_SERVICE);
-        if (power!=null) thermalGuard(power.getCurrentThermalStatus());
+        smartFps.reset();
+    }
+    /** gow3.ini fps_limit as the runtime parses it (30/60/120/240, 0 unlimited; missing: 60). */
+    private int fpsLimit() {
+        String limit=setting("fps_limit");
+        if (limit==null) return 60;
+        return limit.matches("30|60|120|240") ? Integer.parseInt(limit) : 0;
+    }
+    /** The frame rate the game is held to now: Smart FPS's cap, else the limit (unlimited counts 60). */
+    private int currentFpsCap() {
+        if (thermalCapped) return SmartFps.CAP;
+        int limit=fpsLimit();
+        return limit==0 ? 60 : limit;
     }
     private void logThermal(String event) {
         String state="";
@@ -322,7 +336,8 @@ public final class GameActivity extends Activity {
             new SettingsDialog(this,new File(BASE,"gow3.ini"),this::restartGame)
                 // 运行中改倍率时 layer 会热更新 toml，但设备显示模式不会自动跟着变：让对话框在
                 // 生效后回调这里重选 display mode（4.3 复评）。
-                .showLossless(() -> { Process p=game; return p!=null && p.isAlive(); }, this::pickRefreshRate);
+                .showLossless(() -> { Process p=game; return p!=null && p.isAlive(); }, this::pickRefreshRate,
+                    () -> lsfgMultiplier(currentFpsCap()));
         });
 
         hudItem=menuItem("ic_tune",getString(com.gow3.android.R.string.hud_menu_title),"",() -> {
@@ -444,7 +459,9 @@ public final class GameActivity extends Activity {
         setDetail(graphicsItem,upscaler+" · "+("0".equals(limit) ? "no FPS limit"
             : (limit==null || !limit.matches("30|60|120|240") ? "30" : limit)+" FPS limit"));
         String lsfg=setting("lsfg_multiplier");
-        boolean lsfgOn="2".equals(lsfg) || "3".equals(lsfg) || "4".equals(lsfg);
+        int lsfgFrames=lsfgMultiplier(currentFpsCap());
+        boolean lsfgOn=lsfgFrames>0;
+        if ("auto".equals(lsfg)) lsfg="auto "+lsfgFrames;
         // 没导入 Lossless.dll 就开不了插帧：lsfg-vk 只加载玩家自带的 DLL，run-gow3.sh 的
         //  preflight 找不到它时会静默不开 layer（只剩 30 FPS），玩家看不出是自己漏了导入。
         //  所以直接把这一行置灰不可点，并说明去 Home 页导入，而不是让它"看着能开却不生效"。
@@ -465,23 +482,37 @@ public final class GameActivity extends Activity {
     private int displayFps=-1, monitorTick;
     /** gow3.ini hud_monitor, default on. */
     private boolean hudEnabled() { return !"0".equals(setting("hud_monitor")); }
-    /** Every second (pollFrames): the displayed frame rate from the display bridge's counters; every
-     *  2 s the HUD's other readings. A reading the phone denies shows as a dash. */
+    /** Every second (pollFrames): the displayed frame rate from the display bridge's counters, and
+     *  while the game runs Smart FPS and the session record; every 2 s the HUD's other readings. A
+     *  reading the phone denies shows as a dash. */
     private void sampleMonitor() {
         long now=SystemClock.elapsedRealtime(), frames=DisplayBridge.frames(), direct=DisplayBridge.directFrames();
         if (lastFrames>=0 && now>lastFramesAt)
             displayFps=(int)Math.round(Math.max(frames-lastFrames,direct-lastDirectFrames)*1000.0/(now-lastFramesAt));
         lastFrames=frames; lastDirectFrames=direct; lastFramesAt=now;
-        if (hud==null || hud.getVisibility()!=View.VISIBLE || (monitorTick++%2)!=0) return;
+        Process running=game;
+        boolean playing=running!=null && running.isAlive();
+        boolean hudShown=hud!=null && hud.getVisibility()==View.VISIBLE;
+        if (!playing && !hudShown) return;
 
         android.content.Intent battery=registerReceiver(null,new android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED));
         int tenths=battery==null ? Integer.MIN_VALUE : battery.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE,Integer.MIN_VALUE);
         float batteryC=tenths==Integer.MIN_VALUE ? Float.NaN : tenths/10f;
         int status=-1;
+        float forecast=Float.NaN;
         if (Build.VERSION.SDK_INT>=29) {
             android.os.PowerManager power=(android.os.PowerManager)getSystemService(POWER_SERVICE);
-            if (power!=null) status=power.getCurrentThermalStatus();
+            if (power!=null) {
+                status=power.getCurrentThermalStatus();
+                if (Build.VERSION.SDK_INT>=30) forecast=power.getThermalHeadroom(10);
+            }
         }
+        if (playing) {
+            smartTick(status,forecast);
+            session.sample(displayFps,batteryC,status);
+        }
+        if (!hudShown || (monitorTick++%2)!=0) return;
+
         android.app.ActivityManager activities=(android.app.ActivityManager)getSystemService(ACTIVITY_SERVICE);
         android.app.ActivityManager.MemoryInfo memory=new android.app.ActivityManager.MemoryInfo();
         if (activities!=null) activities.getMemoryInfo(memory);
@@ -660,6 +691,9 @@ public final class GameActivity extends Activity {
         env.put("LIBGL_DRIVERS_PATH",ROOT+"/usr/lib/aarch64-linux-gnu/dri");
         // The display Xvfb got (startX): run-gow3.sh exports it as DISPLAY.
         env.put("GOW3_DISPLAY",":"+xdisplay);
+        // lsfg_multiplier=auto: run-gow3.sh takes the multiplier that fits the display (LsfgAuto).
+        if ("auto".equals(setting("lsfg_multiplier")))
+            env.put("GOW3_LSFG_MULTIPLIER",String.valueOf(lsfgMultiplier(currentFpsCap())));
         return b;
     }
     private static long pageSize() {
@@ -980,8 +1014,7 @@ public final class GameActivity extends Activity {
      *  运行时的 layer（manifest + liblsfg-vk.so）都在、玩家的 Lossless.dll 在两处查找位置之一。
      *  刷新率必须依此判断，而不是只看 gow3.ini 的 lsfg_multiplier（4.2 复评）。 */
     private boolean lsfgLaunchable() {
-        String lsfg=setting("lsfg_multiplier");
-        if (!"2".equals(lsfg) && !"3".equals(lsfg) && !"4".equals(lsfg)) return false;
+        if (lsfgMultiplier(currentFpsCap())==0) return false;
         if (!new File(BASE,"arm64/lsfg/VkLayer_LS_frame_generation.json").isFile()) return false;
         if (!new File(BASE,"arm64/lsfg/liblsfg-vk.so").isFile()) return false;
         return hasFrameGenDll();
@@ -996,13 +1029,46 @@ public final class GameActivity extends Activity {
         if (parent!=null && new File(parent,"Lossless.dll").isFile()) return true;
         return new File(BASE,"Lossless.dll").isFile();
     }
+    /** gow3.ini lsfg_multiplier for a game held to [fps]: 2-4 as set, "auto" the largest that fits
+     *  one of the display's refresh rates (LsfgAuto), anything else 0 (off). */
+    private int lsfgMultiplier(int fps) {
+        String value=setting("lsfg_multiplier");
+        if ("2".equals(value) || "3".equals(value) || "4".equals(value)) return Integer.parseInt(value);
+        return "auto".equals(value) ? LsfgAuto.pick(fps,displayRates()) : 0;
+    }
+    /** The refresh rates of the display's modes at its current resolution. */
+    private float[] displayRates() {
+        android.view.Display display=Build.VERSION.SDK_INT>=30 ? getDisplay() : getWindowManager().getDefaultDisplay();
+        if (display==null) return new float[0];
+        android.view.Display.Mode current=display.getMode();
+        java.util.List<Float> rates=new ArrayList<>();
+        for (android.view.Display.Mode mode:display.getSupportedModes())
+            if (mode.getPhysicalWidth()==current.getPhysicalWidth() && mode.getPhysicalHeight()==current.getPhysicalHeight())
+                rates.add(mode.getRefreshRate());
+        float[] out=new float[rates.size()];
+        for (int i=0;i<out.length;i++) out[i]=rates.get(i);
+        return out;
+    }
+    /** Smart FPS changed the game's frame rate: with frame generation the display mode follows,
+     *  and an automatic multiplier is rewritten into the running layer's config (lsfg-vk reloads
+     *  it), so 60x2 becomes 30x4 and the screen stays at 120 Hz. */
+    private void followCapWithLsfg() {
+        if (lsfgFallbackOff || !lsfgLaunchable()) return;
+        File config=new File(BASE,"lsfg-vk.toml");
+        int multiplier=lsfgMultiplier(currentFpsCap());
+        if ("auto".equals(setting("lsfg_multiplier")) && multiplier>0 && config.isFile()) {
+            String flow=setting("lsfg_flow_scale");
+            SettingsDialog.writeLsfgProfile(config,String.valueOf(multiplier),flow==null ? "1.0" : flow,
+                "1".equals(setting("lsfg_performance")));
+        }
+        pickRefreshRate();
+    }
     private void pickRefreshRate() {
-        String lsfg=setting("lsfg_multiplier");
         boolean lsfgOn=lsfgLaunchable() && !lsfgFallbackOff;
-        int frames=lsfgOn ? Integer.parseInt(lsfg) : 1;
-        String limit=setting("fps_limit"); // 同 SettingsDialog.FPS_VALUES / 运行时 FPS_LIMITS
-        final float target=frames*("30".equals(limit) || "60".equals(limit) || "120".equals(limit)
-            || "240".equals(limit) ? Integer.parseInt(limit) : "0".equals(limit) ? 1000 : 30);
+        int base=currentFpsCap(); // Smart FPS's 30, else the limit (同 SettingsDialog.FPS_VALUES / 运行时 FPS_LIMITS)
+        int frames=lsfgOn ? lsfgMultiplier(base) : 1;
+        final boolean unlimited=!thermalCapped && fpsLimit()==0;
+        final float target=frames*(unlimited ? 1000 : base);
         main.post(() -> {
             if (destroyed) return;
             android.view.Display display=Build.VERSION.SDK_INT>=30 ? getDisplay() : getWindowManager().getDefaultDisplay();
@@ -1022,7 +1088,7 @@ public final class GameActivity extends Activity {
             // Frame generation: FPS limit x frames, else the fastest mode. Without it: the even
             // multiple, the fastest mode for an unlimited frame rate, else the system's choice (0).
             if (frames>1) { if (id==0) id=fastest; }
-            else id="0".equals(limit) ? fastest : even;
+            else id=unlimited ? fastest : even;
             WindowManager.LayoutParams attrs=getWindow().getAttributes();
             if (attrs.preferredDisplayModeId!=id) { attrs.preferredDisplayModeId=id; getWindow().setAttributes(attrs); }
         });
@@ -1036,6 +1102,13 @@ public final class GameActivity extends Activity {
         pickRefreshRate();
         main.post(this::resetThermalGuard);
         new File(BASE,"ime.request").delete(); new File(BASE,"ime.request.result").delete();
+        // A copy of the saves before every start (the newest 5 kept): a session that breaks a save
+        // can be rolled back from gow3port/user/savedata_backups.
+        File backup=AutoBackup.run(new File(BASE,"user/savedata"),new File(BASE,"user/savedata_backups"),
+            new java.text.SimpleDateFormat("yyyyMMdd-HHmmss",Locale.US).format(new java.util.Date()),5);
+        if (backup!=null) android.util.Log.i("God of War III","Saves backed up to "+backup);
+        final int sessionLimit=fpsLimit(), sessionLsfg=lsfgLaunchable() ? lsfgMultiplier(currentFpsCap()) : 0;
+        main.post(() -> session.start(SystemClock.elapsedRealtime(),sessionLimit,sessionLsfg));
         try {
             Process launched=process(ROOT+"/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1",
                 ROOT+"/bin/sh",BASE+"/run-gow3.sh","game"); game=launched;
@@ -1050,6 +1123,9 @@ public final class GameActivity extends Activity {
                         tail.add(line); if (tail.size()>8) tail.removeFirst();
                     }
                     int code=launched.waitFor();
+                    // The player's restart or quit cleared `game` first: not a crash.
+                    final int exit=game==launched ? code : SessionRecorder.STOPPED;
+                    main.post(() -> finishSession(exit));
                     if (game==launched) {
                         game=null;
                         String last=tail.isEmpty() ? "" : "\n\n"+String.join("\n",tail);
@@ -1065,9 +1141,38 @@ public final class GameActivity extends Activity {
                     // A restart (settings, cheats) kills this process on purpose: its reader is
                     // interrupted then, after the next game started. Only the current game's errors show.
                     if (!destroyed && game==launched) error(ex.toString());
+                    main.post(() -> finishSession(SessionRecorder.STOPPED));
                 }
             },"God of War III-log"); log.setDaemon(true); log.start();
         } catch (Exception ex) { error(ex.toString()); }
+    }
+    // ---- Session record, launch history and crash recovery ----
+    private final SessionRecorder session=new SessionRecorder();
+    /** The game folder is on a removable volume (a USB drive: USB 2.0 on the iQOO 15R). */
+    private boolean gameOnRemovable() {
+        return gameDir!=null && gameDir.startsWith("/storage/") && !gameDir.startsWith("/storage/emulated/");
+    }
+    /** On the main thread when the game stopped: logs/session-last.json for the launcher's last
+     *  session card, the exit code into gow3port/launch-history, and after two crashes in a row
+     *  with the fast CPU mode the offer to switch to the accurate one. */
+    private void finishSession(int code) {
+        if (!session.running()) return;
+        session.finish(new File(BASE,"logs/session-last.json"),SystemClock.elapsedRealtime(),code,gameOnRemovable());
+        File history=new File(BASE,"launch-history");
+        SessionRecorder.appendHistory(history,code,5);
+        resetThermalGuard();
+        if (!destroyed && !"accurate".equals(setting("cpu_mode"))
+                && SessionRecorder.crashedTwice(SessionRecorder.history(history))) offerAccurateCpu();
+    }
+    private void offerAccurateCpu() {
+        new AlertDialog.Builder(this)
+            .setTitle(com.gow3.android.R.string.crash_title)
+            .setMessage(com.gow3.android.R.string.crash_message)
+            .setNegativeButton(com.gow3.android.R.string.crash_keep,null)
+            .setPositiveButton(com.gow3.android.R.string.crash_switch,(dialog,which) -> {
+                writeSetting("cpu_mode","accurate");
+                restartGame();
+            }).show();
     }
     private void error(String message) {
         hadError=true;
@@ -1079,6 +1184,7 @@ public final class GameActivity extends Activity {
         if (p!=null) { p.destroyForcibly(); try { p.waitFor(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); } }
     }
     @Override protected void onDestroy() {
+        finishSession(SessionRecorder.STOPPED);
         destroyed=true; pad.reset(); audio.stop(); main.removeCallbacksAndMessages(null);
         if (thermalListener!=null && Build.VERSION.SDK_INT>=29) {
             android.os.PowerManager power=(android.os.PowerManager)getSystemService(POWER_SERVICE);

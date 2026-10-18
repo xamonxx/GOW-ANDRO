@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -38,6 +39,7 @@ import com.gow3.android.R
 import com.gow3.android.data.Gow3Ini
 import com.gow3.android.data.ImportResult
 import com.gow3.android.data.LosslessDllManager
+import com.gow3.android.data.LosslessDllState
 import com.gow3.android.data.RemoveResult
 import com.gow3.android.feature.performance.DeviceMonitorCard
 import com.gow3.android.ui.components.LauncherColors
@@ -59,6 +61,8 @@ internal fun HomeScreen(
     var gameDir by remember { mutableStateOf(currentGameDir(context)) }
     var updateDir by remember { mutableStateOf(currentUpdateDir(context)) }
     var notice by remember { mutableStateOf<String?>(null) }
+    // Bumped when Home comes back to the front: the last session and gow3.ini may have changed.
+    var resumeTick by remember { mutableIntStateOf(0) }
 
     fun refreshDll() {
         dllState = losslessDlls.resolve()
@@ -78,6 +82,8 @@ internal fun HomeScreen(
                 refreshDll()
                 gameDir = currentGameDir(context)
                 updateDir = currentUpdateDir(context)
+                iniValues = loadIni(context)
+                resumeTick++
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -92,6 +98,16 @@ internal fun HomeScreen(
         }
     }
 
+    /** An advice's settings, written together. */
+    fun applyAll(updates: Map<String, String>) {
+        if (Gow3Ini.write(gow3IniFile(context), updates)) {
+            iniValues = iniValues + updates
+            toast(context.getString(R.string.advice_applied))
+        } else {
+            Toast.makeText(context, context.getString(R.string.settings_save_failed), Toast.LENGTH_SHORT).show()
+        }
+    }
+
     ScreenColumn(horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(Modifier.height(36.dp))
         Text(stringResource(R.string.title_god_of_war_iii), color = LauncherColors.textPrimary, fontFamily = FontFamily.Serif, fontSize = 20.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.8.sp)
@@ -101,6 +117,7 @@ internal fun HomeScreen(
         Spacer(Modifier.height(16.dp))
         DeviceMonitorCard()
         Spacer(Modifier.height(16.dp))
+        SmartCards(iniValues, dllState is LosslessDllState.Installed, gameDir, resumeTick, ::applyAll)
         LaunchParameters(gameDir, updateDir, iniValues, ::save, onChooseGameFolder, onChooseUpdateFolder)
         Spacer(Modifier.height(16.dp))
         FrameGenerationCard(
