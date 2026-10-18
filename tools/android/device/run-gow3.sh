@@ -26,12 +26,13 @@ chip_id=$("$loader" "$arch/bin/kgsl-chip-id" 2>/dev/null || true)
 # Bionic's getprop must not see the rootfs (glibc) libraries.
 prop() { LD_LIBRARY_PATH= /system/bin/getprop "$1" 2>/dev/null || true; }
 # A device profile (gow3.<profile>.ini) seeds gow3.ini on the first launch; GOW3_DEVICE_PROFILE
-# overrides the detection. iQOO 15R: Snapdragon 8 Gen 5 (SM8845), Adreno 829.
+# overrides the detection. iQOO 15R: Snapdragon 8 Gen 5 (SM8845), Adreno 829, model I2508 (the
+# market name is not always readable).
 device_profile=${GOW3_DEVICE_PROFILE:-}
 if [ -z "$device_profile" ]; then
     case $(printf '%s %s %s' "$(prop ro.vivo.market.name)" "$(prop ro.product.marketname)" \
             "$(prop ro.product.model)" | tr 'A-Z' 'a-z') in
-        *iqoo*15r*|*iqoo*15\ r*) device_profile=iqoo15r ;;
+        *iqoo*15r*|*iqoo*15\ r*|*i2508*) device_profile=iqoo15r ;;
     esac
 fi
 echo "Device: $(prop ro.product.manufacturer) $(prop ro.product.model) ($(prop ro.soc.model)), chip ${chip_id:-unknown}, profile ${device_profile:-default}"
@@ -89,6 +90,30 @@ elif [ -f "$fex_profile" ]; then
 else
     echo "CPU: FEX profile accurate (no $fex_profile in this runtime)"
 fi
+# Helper placement (cpu_placement, default on): on a hybrid CPU (iQOO 15R: 2 x 3.80 GHz prime +
+# 6 x 3.32 GHz) the GPU's background helpers run off the prime cores, which stay for the game's
+# main thread and the GPU threads (gpu/shim/gow3_threads.h KeepOffPrimeCores logs the cores).
+if [ "$(setting cpu_placement)" != 0 ]; then
+    export GOW3_CPU_PLACEMENT=1
+fi
+# Thermal cap: the launcher writes a frame limit (30) here while the phone is too hot and removes
+# it once cool; the present thread reads it live (Gow3Settings::ThermalCap). The launcher owns the
+# file and clears it before each start.
+export GOW3_THERMAL_CAP_FILE="$base/thermal.cap"
+# Frame statistics every 5 s in this log (frame_stats=1): FPS, frame time spread, GPU thread load.
+if [ "$(setting frame_stats)" = 1 ]; then
+    export GOW3_FRAME_STATS=1
+    echo "Diagnostics: frame stats every 5 s"
+fi
+# Turnip render mode (gpu_render_mode, experimental): gmem or sysmem forces one rendering path
+# for A/B tests against the frame stats; unset keeps Turnip's own choice per render pass.
+render_mode=$(setting gpu_render_mode)
+case $render_mode in
+    gmem|sysmem)
+        export TU_DEBUG="${TU_DEBUG:+$TU_DEBUG,}$render_mode"
+        echo "GPU: Turnip render mode $render_mode (experimental)"
+        ;;
+esac
 
 # vk_swapchain.cpp 在 lsfg-vk 创建/present 失败时以这个码退出（kLsfgFailureExitCode）。两边必须一致。
 lsfg_failure_code=46
@@ -210,6 +235,14 @@ esac
 # GOW3_GAME_DIR: the game's folder (eboot.bin, sce_module, sce_sys). Default: gow3port/game.
 game=${GOW3_GAME_DIR:-$base/game}
 [ -f "$game/eboot.bin" ] || { echo "Game missing: $game (no eboot.bin)" >&2; exit 2; }
+# The game streams its data while playing: a removable volume (a USB OTG drive: USB 2.0 on the
+# iQOO 15R) reads far slower than the internal storage.
+case $game in
+    /storage/emulated/*|/sdcard/*|/data/*) storage=internal ;;
+    /storage/*|/mnt/media_rw/*) storage=removable ;;
+    *) storage=unknown ;;
+esac
+echo "Storage: game on ${game%/*} ($storage)"
 
 # GOW3_PATCH_DIR: an update folder (eboot.bin, sce_sys) laid over the game at start. The merged
 # read-only view (scripts/game_update.py) is what prepare/patches/probe use; both dumps stay intact.

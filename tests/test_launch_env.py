@@ -61,6 +61,19 @@ class LaunchEnvReasonTests(unittest.TestCase):
         self.assertEqual(plan['updates']['GOW3_PATCH_STATUS'], 'validated')
         self.assertIsNotNone(plan['dmem'])
 
+    def test_skip_intro_setting_selects_the_patch(self):
+        self.assertNotIn('Skip Intro', self._plan()['patch_names'])
+        self.config.write_text('skip_intro=1\n')
+        self.assertIn('Skip Intro', self._plan()['patch_names'])
+        # With the launcher's exact selection too, and only once.
+        names = self._plan({'GOW3_PATCHES': 'Skip Intro', 'GOW3_PATCHES_ONLY': '1'})['patch_names']
+        self.assertEqual(names.count('Skip Intro'), 1)
+        self.config.write_text('skip_intro=0\n')
+        self.assertNotIn('Skip Intro', self._plan()['patch_names'])
+
+    def test_skip_intro_patch_compiles(self):
+        self.assertTrue(patches.compile_patches(GOW3_XML, ['Skip Intro'], '01.02', [(0, 0x6000000)]))
+
     def test_player_files_remain_byte_identical(self):
         game = self.dir / 'game'
         (game / 'sce_sys').mkdir(parents=True)

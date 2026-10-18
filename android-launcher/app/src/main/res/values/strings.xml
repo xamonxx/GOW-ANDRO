@@ -32,6 +32,7 @@
     <string name="param_group_display">DISPLAY</string>
     <string name="param_group_performance">PERFORMANCE</string>
     <string name="param_group_startup">STARTUP</string>
+    <string name="param_group_diagnostics">DIAGNOSTICS</string>
     <string name="dialog_ok">OK</string>
 
     <!-- 启动参数：参数名 -->
@@ -44,6 +45,10 @@
     <string name="param_gpu_boost">GPU boost</string>
     <string name="param_cpu_mode">CPU mode</string>
     <string name="param_sustained_perf">Sustained performance</string>
+    <string name="param_thermal_guard">Thermal guard</string>
+    <string name="param_cpu_placement">CPU core placement</string>
+    <string name="param_gpu_render_mode">GPU render mode (experimental)</string>
+    <string name="param_frame_stats">Frame stats log</string>
     <string name="param_offline_start">Offline start</string>
     <string name="param_skip_intros">Skip intros</string>
     <string name="param_free_camera">Free camera</string>
@@ -70,6 +75,9 @@
     <string name="param_option_frames_2">2</string>
     <string name="param_option_cpu_fast">Fast</string>
     <string name="param_option_cpu_accurate">Accurate</string>
+    <string name="param_option_render_auto">Auto</string>
+    <string name="param_option_render_gmem">GMEM</string>
+    <string name="param_option_render_sysmem">SYSMEM</string>
 
     <!-- 启动参数：说明 -->
     <string name="param_desc_upscaler">Renders the game at a lower internal resolution and then uses FSR 3.1 to scale the image up to your screen, so you get more performance while keeping a sharp picture. Off renders at a fixed 1280×720.</string>
@@ -79,6 +87,10 @@
     <string name="param_desc_gpu_boost">Keeps the GPU at its top clock while the game draws. Smoother frame rate, but the phone runs warmer and uses more battery.</string>
     <string name="param_desc_cpu_mode">Fast skips the x86 memory-order emulation, which costs the most CPU time. If the game hangs or crashes at random, switch to Accurate.</string>
     <string name="param_desc_sustained_perf">Holds the CPU and GPU at clocks the phone can keep for a long session: a slightly lower peak, but no slowdown when it heats up. Only on phones that support it.</string>
+    <string name="param_desc_thermal_guard">When the phone gets too hot, the frame rate drops to 30 by itself and returns to the limit once it cools down. Keeps the game steady instead of throttling hard.</string>
+    <string name="param_desc_cpu_placement">Keeps the fastest CPU cores free for the game and the GPU, and runs background helpers on the other cores.</string>
+    <string name="param_desc_gpu_render_mode">For testing only: forces one GPU rendering path. Compare the frame stats, then go back to Auto.</string>
+    <string name="param_desc_frame_stats">Writes FPS and frame time every 5 seconds to the game log, to find what limits the frame rate.</string>
     <string name="param_desc_free_camera">Lets you move the camera freely around the world for exploring or testing, instead of following the gameplay camera. Meant for experimentation, not normal play.</string>
 
     <!-- 帧生成卡片 -->

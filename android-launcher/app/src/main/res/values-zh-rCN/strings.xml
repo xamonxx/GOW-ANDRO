@@ -32,6 +32,7 @@
     <string name="param_group_display">显示</string>
     <string name="param_group_performance">性能</string>
     <string name="param_group_startup">启动</string>
+    <string name="param_group_diagnostics">诊断</string>
     <string name="dialog_ok">确定</string>
 
     <!-- 启动参数：参数名 -->
@@ -44,6 +45,10 @@
     <string name="param_gpu_boost">GPU 加速</string>
     <string name="param_cpu_mode">CPU 模式</string>
     <string name="param_sustained_perf">持续性能</string>
+    <string name="param_thermal_guard">温控保护</string>
+    <string name="param_cpu_placement">CPU 核心分配</string>
+    <string name="param_gpu_render_mode">GPU 渲染模式（实验）</string>
+    <string name="param_frame_stats">帧统计日志</string>
     <string name="param_offline_start">离线启动</string>
     <string name="param_skip_intros">跳过开场</string>
     <string name="param_free_camera">自由视角</string>
@@ -70,6 +75,9 @@
     <string name="param_option_frames_2">2</string>
     <string name="param_option_cpu_fast">快速</string>
     <string name="param_option_cpu_accurate">精确</string>
+    <string name="param_option_render_auto">自动</string>
+    <string name="param_option_render_gmem">GMEM</string>
+    <string name="param_option_render_sysmem">SYSMEM</string>
 
     <!-- 启动参数：说明 -->
     <string name="param_desc_upscaler">以较低的内部分辨率渲染游戏，再用 FSR 3.1 把画面放大到你的屏幕，在保持清晰画面的同时获得更高性能。关闭时以固定 1280×720 渲染。</string>
@@ -79,6 +87,10 @@
     <string name="param_desc_gpu_boost">游戏绘制时让 GPU 保持最高频率。帧率更稳，但手机更热、更耗电。</string>
     <string name="param_desc_cpu_mode">快速：跳过开销最大的 x86 内存顺序模拟。若游戏随机卡死或崩溃，请切换为精确。</string>
     <string name="param_desc_sustained_perf">让 CPU 和 GPU 保持在手机能长时间维持的频率：峰值略低，但发热后不会掉帧。仅支持的手机可用。</string>
+    <string name="param_desc_thermal_guard">手机过热时帧率自动降到 30，降温后恢复到上限，避免严重降频导致卡顿。</string>
+    <string name="param_desc_cpu_placement">把最快的 CPU 核心留给游戏和 GPU，后台辅助线程运行在其他核心上。</string>
+    <string name="param_desc_gpu_render_mode">仅供测试：强制使用一种 GPU 渲染路径。对比帧统计后请改回自动。</string>
+    <string name="param_desc_frame_stats">每 5 秒把 FPS 和帧时间写入游戏日志，用于找出限制帧率的原因。</string>
     <string name="param_desc_free_camera">允许你自由移动视角环游世界，用于探索或测试，而不是跟随游戏视角。仅供实验，不适合正常游玩。</string>
 
     <!-- 帧生成卡片 -->

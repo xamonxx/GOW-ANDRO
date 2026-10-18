@@ -410,6 +410,7 @@ PipelineCache::PipelineCache(const Instance& instance_, Scheduler& scheduler_,
         compiler = std::make_unique<AsyncCompiler>(count, 64, [](unsigned index) {
             Common::SetCurrentThreadName(("gow3:ShaderCompile" + std::to_string(index)).c_str());
             Common::SetCurrentThreadPriority(Common::ThreadPriority::Low);
+            Gow3Threads::KeepOffPrimeCores();
         });
         LOG_INFO(Render_Vulkan, "gow3: async graphics compilation ready ({} capture, {} compile workers)",
                  capture_count, count);

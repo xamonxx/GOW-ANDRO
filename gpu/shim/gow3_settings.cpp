@@ -4,6 +4,7 @@
 #include "gow3_graphics.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -369,6 +370,34 @@ void Save() {
         }
         std::fclose(append);
     }
+}
+
+int ParseThermalCap(const char* text) {
+    return text ? Gow3Graphics::ParseFpsLimit(std::atoi(text)) : 0;
+}
+
+int ThermalCap() {
+    static const char* const path = std::getenv("GOW3_THERMAL_CAP_FILE");
+    if (!path || !path[0]) {
+        return 0;
+    }
+    // Only the present thread calls this.
+    static auto next_read = std::chrono::steady_clock::time_point{};
+    static int cap = 0;
+    const auto now = std::chrono::steady_clock::now();
+    if (now < next_read) {
+        return cap;
+    }
+    next_read = now + std::chrono::seconds(1);
+    char text[16] = {};
+    cap = 0;
+    if (FILE* file = std::fopen(path, "r")) {
+        if (std::fgets(text, sizeof(text), file)) {
+            cap = ParseThermalCap(text);
+        }
+        std::fclose(file);
+    }
+    return cap;
 }
 
 float PresetScale(int preset) {

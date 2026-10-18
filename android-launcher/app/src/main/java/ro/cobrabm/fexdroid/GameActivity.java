@@ -125,6 +125,8 @@ public final class GameActivity extends Activity {
         @Override public void run() {
             if (destroyed) return;
             logThermal("tick");
+            android.os.PowerManager power=(android.os.PowerManager)getSystemService(POWER_SERVICE);
+            if (power!=null) thermalGuard(power.getCurrentThermalStatus());
             main.postDelayed(this,30000);
         }
     };
@@ -132,10 +134,44 @@ public final class GameActivity extends Activity {
         if (Build.VERSION.SDK_INT<29) return;
         android.os.PowerManager power=(android.os.PowerManager)getSystemService(POWER_SERVICE);
         if (power==null) return;
-        android.os.PowerManager.OnThermalStatusChangedListener listener=status -> logThermal("status changed");
+        android.os.PowerManager.OnThermalStatusChangedListener listener=status -> {
+            logThermal("status changed");
+            thermalGuard(status);
+        };
         power.addThermalStatusListener(listener);
         thermalListener=listener;
         main.postDelayed(thermalTick,30000);
+    }
+    /** Thermal guard (gow3.ini thermal_guard, default on), on the main thread: the game's frame limit
+     *  drops to 30 while the phone is SEVERE or hotter and comes back once it is LIGHT or cooler.
+     *  gow3port/thermal.cap is read live by the present thread (run-gow3.sh GOW3_THERMAL_CAP_FILE). */
+    private boolean thermalCapped;
+    private static final int THERMAL_CAP_ON=3 /* SEVERE */, THERMAL_CAP_OFF=1 /* LIGHT */;
+    private void thermalGuard(int status) {
+        boolean enabled=!"0".equals(setting("thermal_guard"));
+        if (thermalCapped && (!enabled || status<=THERMAL_CAP_OFF)) setThermalCap(false);
+        else if (!thermalCapped && enabled && status>=THERMAL_CAP_ON) setThermalCap(true);
+    }
+    private void setThermalCap(boolean on) {
+        // Never creates gow3port: before the first install there is no game to cap.
+        if (!new File(BASE).isDirectory()) return;
+        File cap=new File(BASE,"thermal.cap");
+        try {
+            if (on) { try (PrintWriter out=new PrintWriter(cap)) { out.println("30"); } }
+            else if (cap.exists() && !cap.delete()) throw new java.io.IOException("cannot delete");
+            thermalCapped=on;
+            logThermal(on ? "guard: frame limit capped at 30" : "guard: cap released");
+        } catch (Exception ex) {
+            logThermal("guard: cannot update "+cap+": "+ex.getMessage());
+        }
+    }
+    /** Before each start: no cap left from an earlier session, then the current state decides. */
+    private void resetThermalGuard() {
+        new File(BASE,"thermal.cap").delete();
+        thermalCapped=false;
+        if (Build.VERSION.SDK_INT<29) return;
+        android.os.PowerManager power=(android.os.PowerManager)getSystemService(POWER_SERVICE);
+        if (power!=null) thermalGuard(power.getCurrentThermalStatus());
     }
     private void logThermal(String event) {
         String state="";
@@ -909,6 +945,7 @@ public final class GameActivity extends Activity {
         lsfgFallbackOff=false;
         new File(BASE,"lsfg-fallback.marker").delete();
         pickRefreshRate();
+        main.post(this::resetThermalGuard);
         new File(BASE,"ime.request").delete(); new File(BASE,"ime.request.result").delete();
         try {
             Process launched=process(ROOT+"/usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1",

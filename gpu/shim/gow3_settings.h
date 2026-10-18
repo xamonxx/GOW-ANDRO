@@ -128,6 +128,12 @@ bool GraphicsNeedRestart();
 /// Writes the file (menu changes).
 void Save();
 
+/// A thermal cap file's text: a listed frame limit (30, 60, ...), else 0 (no cap).
+int ParseThermalCap(const char* text);
+/// The Android launcher's thermal frame cap: GOW3_THERMAL_CAP_FILE, read at most once a second
+/// (the present thread asks every vblank). 0 when unset or the file is absent.
+int ThermalCap();
+
 /// Render resolution divisor of a preset (1.0 native, 1.5 quality, ...).
 float PresetScale(int preset);
 const char* PresetName(int preset);

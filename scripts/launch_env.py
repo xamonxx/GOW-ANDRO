@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 
 PORT = Path(__file__).resolve().parent.parent
+SKIP_INTRO = 'Skip Intro'
 
 
 def derive(game, config, state_path, env):
@@ -51,8 +52,14 @@ def derive(game, config, state_path, env):
         if profile is None or identity['eboot_matches'] is False:
             updates['GOW3_PATCH_STATUS'] = identity['reason']
     if profile and identity['reason'] == 'validated':
+        extra = env.get('GOW3_PATCHES', '')
+        # The Android launcher's Skip intros (gow3.ini skip_intro=1): the built-in patch, chosen
+        # like any other so the exclusivity and memory rules still apply.
+        if (graphics_options.read_ini(config).get('skip_intro') == '1'
+                and SKIP_INTRO not in (name.strip() for name in extra.split(';'))):
+            extra = f'{extra};{SKIP_INTRO}' if extra else SKIP_INTRO
         try:
-            names = selected_patches(profile[1], profile[2], env.get('GOW3_PATCHES', ''),
+            names = selected_patches(profile[1], profile[2], extra,
                                      env.get('GOW3_PATCHES_ONLY') == '1')
         except ValueError:
             # Two resolution patches (or another exclusivity violation) cannot both apply.

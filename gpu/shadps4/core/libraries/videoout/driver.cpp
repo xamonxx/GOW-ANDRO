@@ -660,10 +660,14 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
     // gow3: the in-game menu changes the limit live (Gow3Settings::fps_limit); GOW3_FPS_LIMIT
     // and the uncapped presets keep their fixed limit.
     const bool fixed_limit = std::getenv("GOW3_FPS_LIMIT") || EmulatorSettings.GetVblankFrequency() == 480;
+    // gow3: the Android launcher's thermal cap (Gow3Settings::ThermalCap) lowers the limit live
+    // while the phone is hot; a listed limit, so the vblank-paced path below is unchanged.
     const auto current_limit = [&] {
         return fixed_limit ? EmulatorSettings.GetFrameLimit()
-                           : u32(Gow3Graphics::PresentLimit(Gow3Settings::Get().fps_limit.load(),
-                                                            Gow3Settings::Get().applied_engine_fps.load()));
+                           : u32(Gow3Graphics::ThermalLimit(
+                                 Gow3Graphics::PresentLimit(Gow3Settings::Get().fps_limit.load(),
+                                                            Gow3Settings::Get().applied_engine_fps.load()),
+                                 Gow3Settings::ThermalCap()));
     };
     u32 frame_limit = current_limit();
     auto frame_period = frame_limit ? std::chrono::nanoseconds(1000000000 / frame_limit)

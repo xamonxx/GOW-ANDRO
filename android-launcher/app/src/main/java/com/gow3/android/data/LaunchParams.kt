@@ -37,22 +37,14 @@ internal data class LaunchOption(val value: String, val labelRes: Int)
  */
 internal object LaunchParams {
     val all: List<LaunchParam> = listOf(
-        LaunchParam(
-            key = "upscaler", labelRes = R.string.param_upscaler, groupRes = R.string.param_group_display,
-            options = listOf(
-                LaunchOption("off", R.string.param_option_off_720p),
-                LaunchOption("fsr3", R.string.param_option_fsr31),
-            ),
-            defaultValue = "fsr3",
-            descriptionRes = R.string.param_desc_upscaler,
-        ),
+        // 不提供 upscaler：Android 上 launch_env.py 固定 GOW3_UPSCALER=none（时域放大尚未针对本游戏校准），
+        // 该选项不会生效。800p 也不提供：补丁 XML 里没有 800p 分辨率补丁。
         LaunchParam(
             key = "render_resolution", labelRes = R.string.param_resolution, groupRes = R.string.param_group_display,
             options = listOf(
                 LaunchOption("native", R.string.param_option_native),
                 LaunchOption("480p", R.string.param_option_480p),
                 LaunchOption("720p", R.string.param_option_720p),
-                LaunchOption("800p", R.string.param_option_800p),
                 LaunchOption("1440p", R.string.param_option_1440p),
                 LaunchOption("1800p", R.string.param_option_1800p),
                 LaunchOption("4K", R.string.param_option_4k),
@@ -137,29 +129,55 @@ internal object LaunchParams {
             descriptionRes = R.string.param_desc_sustained_perf,
         ),
         LaunchParam(
-            key = "skip_network_choice", labelRes = R.string.param_offline_start, groupRes = R.string.param_group_startup,
+            // GameActivity：温度达到 SEVERE 时写 gow3port/thermal.cap=30，降到 LIGHT 后删除（缺省视为开启）。
+            key = "thermal_guard", labelRes = R.string.param_thermal_guard, groupRes = R.string.param_group_performance,
             options = listOf(
                 LaunchOption("0", R.string.param_option_off),
                 LaunchOption("1", R.string.param_option_on),
             ),
             defaultValue = "1",
+            descriptionRes = R.string.param_desc_thermal_guard,
         ),
         LaunchParam(
-            key = "skip_intro", labelRes = R.string.param_skip_intros, groupRes = R.string.param_group_startup,
+            // run-gow3.sh：非 0 时导出 GOW3_CPU_PLACEMENT=1（gow3_threads.h KeepOffPrimeCores）。
+            key = "cpu_placement", labelRes = R.string.param_cpu_placement, groupRes = R.string.param_group_performance,
             options = listOf(
                 LaunchOption("0", R.string.param_option_off),
                 LaunchOption("1", R.string.param_option_on),
             ),
             defaultValue = "1",
+            descriptionRes = R.string.param_desc_cpu_placement,
         ),
         LaunchParam(
-            key = "debug_camera", labelRes = R.string.param_free_camera, groupRes = R.string.param_group_startup,
+            // run-gow3.sh：TU_DEBUG=gmem|sysmem，仅供 A/B 测试；auto 不改变 Turnip 的选择。
+            key = "gpu_render_mode", labelRes = R.string.param_gpu_render_mode, groupRes = R.string.param_group_diagnostics,
+            options = listOf(
+                LaunchOption("auto", R.string.param_option_render_auto),
+                LaunchOption("gmem", R.string.param_option_render_gmem),
+                LaunchOption("sysmem", R.string.param_option_render_sysmem),
+            ),
+            defaultValue = "auto",
+            descriptionRes = R.string.param_desc_gpu_render_mode,
+        ),
+        LaunchParam(
+            // run-gow3.sh：1 时导出 GOW3_FRAME_STATS=1，每 5 秒在 android-game.log 记录 Frame stats。
+            key = "frame_stats", labelRes = R.string.param_frame_stats, groupRes = R.string.param_group_diagnostics,
             options = listOf(
                 LaunchOption("0", R.string.param_option_off),
                 LaunchOption("1", R.string.param_option_on),
             ),
             defaultValue = "0",
-            descriptionRes = R.string.param_desc_free_camera,
+            descriptionRes = R.string.param_desc_frame_stats,
+        ),
+        // skip_network_choice / debug_camera 不再提供：本仓库没有任何代码读取它们。
+        LaunchParam(
+            // launch_env.py：skip_intro=1 时选择内置补丁 "Skip Intro"；缺省（未写入）为关闭，与运行时一致。
+            key = "skip_intro", labelRes = R.string.param_skip_intros, groupRes = R.string.param_group_startup,
+            options = listOf(
+                LaunchOption("0", R.string.param_option_off),
+                LaunchOption("1", R.string.param_option_on),
+            ),
+            defaultValue = "0",
         ),
     )
 

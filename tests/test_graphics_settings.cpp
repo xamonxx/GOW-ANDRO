@@ -5,8 +5,10 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 #include "gow3_graphics.h"
 #include "gow3_settings.h"
+#include "gow3_threads.h"
 
 namespace G = Gow3Graphics;
 
@@ -43,6 +45,26 @@ int main() {
     assert(G::FsrPassRuns(false, true, 1920, 1080, 1920, 1080) && !G::FsrPassRuns(true, false, 1920, 1080, 1920, 1080));
     assert(!G::FsrPassRuns(true, true, 2560, 1440, 1920, 1080));  // larger image: regular scaling
     assert(G::EffectiveFps(0, 120) == 120 && G::EffectiveFps(240, 120) == 120 && G::EffectiveFps(60, 240) == 60);
+    // The thermal cap lowers, never raises; 0 is no cap.
+    assert(G::ThermalLimit(60, 30) == 30 && G::ThermalLimit(0, 30) == 30 && G::ThermalLimit(30, 60) == 30);
+    assert(G::ThermalLimit(60, 0) == 60 && G::ThermalLimit(0, 0) == 0);
+    assert(Gow3Settings::ParseThermalCap("30\n") == 30 && Gow3Settings::ParseThermalCap("45") == 0);
+    assert(Gow3Settings::ParseThermalCap("") == 0 && Gow3Settings::ParseThermalCap(nullptr) == 0);
+    {
+        const char* cap_path = "graphics-settings-test.cap";
+        std::ofstream(cap_path) << "30\n";
+        _putenv_s("GOW3_THERMAL_CAP_FILE", cap_path);
+        assert(Gow3Settings::ThermalCap() == 30);
+        std::remove(cap_path);
+        assert(Gow3Settings::ThermalCap() == 30);  // read at most once a second
+    }
+    // iQOO 15R: 6 x 3.32 GHz + 2 x 3.80 GHz -> cores 6 and 7; alike or unknown cores -> none.
+    using CoreList = std::vector<unsigned>;
+    assert(Gow3Threads::PrimeCores({3321600, 3321600, 3321600, 3321600, 3321600, 3321600, 3801600, 3801600}) ==
+           (CoreList{6, 7}));
+    assert(Gow3Threads::PrimeCores({2000000, 2000000, 2000000, 2000000}).empty());
+    assert(Gow3Threads::PrimeCores({3321600, 0, 3801600}).empty());
+    assert(Gow3Threads::PrimeCores({}).empty());
 
     const char* path = "graphics-settings-test.ini";
     {

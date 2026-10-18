@@ -106,4 +106,10 @@ inline int PresentLimit(int limit, int engine_fps) {
     return limit == 0 ? 0 : EffectiveFps(limit, engine_fps);
 }
 
+/// The present limit under the Android launcher's thermal cap (GOW3_THERMAL_CAP_FILE): a cap
+/// lowers an unlimited or higher limit to itself, never raises a lower one. 0: no cap.
+inline int ThermalLimit(int present_limit, int cap) {
+    return cap > 0 && (present_limit == 0 || present_limit > cap) ? cap : present_limit;
+}
+
 } // namespace Gow3Graphics
