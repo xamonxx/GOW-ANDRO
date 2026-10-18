@@ -2,6 +2,8 @@
 
 ## Konteks
 
+> Pembaruan 18 Okt: ditambah **Bagian 1C (fitur cerdas: Smart FPS prediktif, laporan sesi + saran, rekomendasi otomatis, pemulihan crash, LSFG otomatis, backup save, sadar baterai)** dan **Bagian 1B**, yaitu penyesuaian dengan spek iQOO 15R dari laporan DevCheck (2 inti prime + 6 performa, RAM 12 GB, USB 2.0, Adreno 829, panel 144 Hz).
+
 Log terakhir (build-11, 18 Okt) menunjukkan semua perbaikan sebelumnya **aktif**: patch 720p `validated`, `kgsl: power constraint max … set`, `CPU: FEX profile fast`. Ada tiga masalah yang menghambat performa stabil, dan empat opsi launcher yang ternyata palsu:
 
 1. **Suhu.** `android-thermal.log`: status termal naik 0 → **4 (CRITICAL)** dalam 5–6 menit di setiap sesi, headroom 1.1–1.2 (throttling aktif). Begitu throttling, FPS pasti turun dan tidak stabil.
@@ -75,6 +77,89 @@ Pembaca data baru di Java, `ro/cobrabm/fexdroid/DeviceStats.java`. Path file bis
 - **Di dalam game:** HUD Android baru (`HudOverlay.java`, View di atas SurfaceView seperti `TouchControllerOverlay`). Isinya FPS, suhu °C dengan warna sesuai status, GPU %/MHz, RAM game/HP, dan lencana "Thermal Guard aktif". Bisa dinyalakan/dimatikan (`hud_monitor`, default on) dari launcher dan dari laci menu in-game. Ini tidak mengubah kode native.
 - **Test:** `DeviceStatsTest` (JVM) memakai file sysfs/proc palsu, termasuk kasus file tidak terbaca.
 
+## Bagian 1B: Disesuaikan dengan spek iQOO 15R (laporan DevCheck 16 Okt)
+
+Spek terukur:
+- Snapdragon 8 Gen 5 (SM8845, 3 nm), 8 inti Oryon Gen 3: **2 prime hingga 3,80 GHz** dan **6 performa hingga 3,32 GHz**, governor `walt`.
+- Adreno 829 (chip KGSL `0x44030a20`, Turnip gen8).
+- **RAM 12 GB** LPDDR5X.
+- UFS 256 GB (f2fs).
+- Android 16, kernel 6.12 dengan page 4 KB.
+- Baterai 7600 mAh.
+- **USB Type-C 2.0**.
+- Panel 144 Hz.
+
+### P8. Inti prime untuk thread game, helper di inti performa
+- Saat ini thread helper GPU bebas berjalan di mana saja. `vk_draw_prep.cpp` membuat 4 worker + scanner (`Available()/2`), `vk_pipeline_cache.cpp` membuat hingga 6 thread warm-up, dan `gow3_copy.cpp` membuat thread copy. Semuanya bisa merebut 2 inti prime dari thread utama game (FEX, bergantung kecepatan satu inti) dan dari thread GPU (`GpuCommandProcessor`, `VkRecorder`).
+- `gpu/shim/gow3_threads.h`: tambah `PrimeCores()`, yang membaca `/sys/devices/system/cpu/cpu*/cpufreq/cpuinfo_max_freq` dan menandai inti dengan frekuensi tertinggi. Kalau tidak terbaca atau semua inti sama, hasilnya kosong dan **tidak ada perubahan**. Tambah juga `KeepOffPrimeCores()`, yang memakai `sched_setaffinity` untuk thread pemanggil ke inti non-prime (di HP ini 6 inti 3,32 GHz).
+- Dipanggil di tempat helper sudah memanggil `Gow3Threads::MakeBackground()` (`vk_draw_prep.cpp:329/383`), di thread warm-up/compile `vk_pipeline_cache.cpp`, dan di thread copy `gow3_copy.cpp`.
+- Thread kritis **tidak dipin**: governor `walt` tetap bebas menaruhnya di inti prime, yang sekarang kosong dari helper. Hasilnya lebih aman daripada pin keras.
+- Key `cpu_placement` (default 1) → `run-gow3.sh` mengekspor `GOW3_CPU_PLACEMENT`. Log mencatat `CPU: prime cores 6-7, helpers on 0-5` atau `CPU: placement off/unavailable`.
+- **Test:** fungsi murni pemilihan inti dari daftar frekuensi (misalnya `{3321,…,3801,3801}` → {6,7}) ditambahkan di `tests/test_graphics_settings.cpp` (sudah dijalankan di launcher-check).
+
+### P9. Memanfaatkan RAM 12 GB
+- `GOW3_DEVICE_MEM_MB` sudah diambil dari `/proc/meminfo`. Pada 12 GB, DMEM 7104 MiB untuk patch 720p aman.
+- Kalau RAM ≥ 11 GB, `run-gow3.sh` menaikkan batas `GOW3_PIPELINE_CACHE`/warm-up dan antrean deferred readback (`deferred image readback … 64 copies, 64 MiB`) ke nilai desktop. Hanya key/env yang memang dibaca kode yang dipakai. Sebelum implementasi, saya verifikasi nama env-nya di `vk_presenter.cpp`/`vk_pipeline_cache.cpp`. Kalau ternyata tidak ada knob, poin ini dibatalkan, bukan dipalsukan.
+- Di HP 8 GB, nilai default tetap dipakai.
+
+### P10. Game di USB 2.0: deteksi dan saran
+- Folder game Anda ada di `/storage/FC000E65000E276C/...`. iQOO 15R tidak punya slot kartu, jadi itu volume USB (OTG) dengan **USB 2.0** (sekitar 30–40 MB/s, latensi tinggi). GoW3 men-streaming aset saat bermain, sehingga pembacaan lambat bisa menimbulkan patah-patah dan loading lama.
+- Launcher memeriksa `StorageManager.getStorageVolume(folder).isRemovable`. Kalau removable, kartu Game di Beranda dan sub-tab Preset menampilkan peringatan "Game ada di penyimpanan USB, pindahkan ke memori internal (UFS) supaya loading lebih cepat". Isinya informasi saja, tidak memindahkan file.
+- `run-gow3.sh` mencatat `Storage: game on <volume> (removable)` di log.
+
+### P11. Eksperimen render GPU Adreno 829 (Diagnostik)
+- Opsi "Mode render GPU": Otomatis (default) / GMEM / SYSMEM, dipetakan ke `TU_DEBUG=gmem|sysmem` (flag Turnip). Opsi ini hanya untuk uji A/B dengan log Frame stats dan diberi label eksperimental. Default tidak mengubah apa pun.
+- Refresh panel 144 Hz: G1 dari build sebelumnya sudah memilih 120 Hz untuk 60 fps. Thermal Guard 30 fps juga rata di 120 Hz (4×).
+
+### P12. Default iQOO 15R yang diperbarui
+- `gow3-iqoo15r.ini` = preset **Seimbang** + `cpu_placement=1` + `thermal_guard=1` + `hud_monitor=1`, dan `effect_*` dihapus.
+- Profil ini juga dipakai untuk chip `0x44030a20` (Adreno 829) kalau properti `ro.product.model=I2508` terbaca. Deteksi di `run-gow3.sh` ditambah model `I2508` (iQOO 15R), karena nama market belum tentu terbaca.
+
+## Bagian 1C: Fitur cerdas (memutuskan dari data, bukan sekadar toggle)
+
+Semua fitur ini memakai sampler satu sumber: `pollFrames()` di `GameActivity` (sudah berjalan setiap 1 detik) mencatat FPS layar (selisih `DisplayBridge.frames()`), suhu baterai, status termal, headroom prakiraan, dan cap aktif ke buffer ring. Tidak ada thread atau kode native baru.
+
+### P13. Smart FPS (pengganti logika P1 berbasis status)
+- **Prediktif:** memakai `getThermalHeadroom(10)` (prakiraan 10 detik ke depan, sudah dipakai di `logThermal`). Kalau prakiraan ≥ 0,95 selama 15 detik, cap 30 dipasang **sebelum** HP masuk SEVERE dan throttling. Status ≥ SEVERE tetap memicu cap langsung sebagai pengaman.
+- **Stabilitas FPS:** kalau suhu aman tapi FPS layar rata-rata < 50 selama 20 detik (game tidak mampu mempertahankan 60), cap juga turun ke 30. 30 yang rata terasa lebih mulus daripada 40–55 yang naik turun di layar 120 Hz.
+- **Pulih:** cap dilepas kalau headroom < 0,75, status ≤ LIGHT, dan minimal 60 detik sejak cap dipasang (histeresis, supaya tidak naik turun terus).
+- Memakai mekanisme file `thermal.cap` dan native `ThermalLimit` dari P1 (tanpa perubahan native tambahan). Key `smart_fps` (default 1) menggantikan `thermal_guard`; nilai `thermal_guard` lama tetap dibaca.
+- **Test:** logika keputusan dipisah sebagai kelas Java murni `SmartFps` (input sampel → cap) dengan `SmartFpsTest` (JVM): naik, turun, histeresis, dan kasus data kosong.
+
+### P14. Laporan sesi + saran cerdas
+- Saat game berhenti, sampler menulis `logs/session-last.json`: durasi, FPS rata-rata dan 1% terendah, persentase waktu ≥ 55 FPS, suhu maksimal, waktu dalam SEVERE/CRITICAL, jumlah cap Smart FPS, dan kode keluar.
+- Beranda menampilkan kartu **"Sesi terakhir"** dengan ringkasan dan **saran yang bisa diterapkan sekali ketuk**. Mesin aturannya murni Kotlin, `data/Advisor.kt`, misalnya:
+  - lama di CRITICAL → "Pakai preset Dingin & Stabil" [Terapkan];
+  - FPS < 50 padahal suhu aman → "Turunkan resolusi ke 480p" [Terapkan];
+  - LSFG multiplier × FPS > refresh panel → "Ganti ke x2" [Terapkan];
+  - game di USB → "Pindahkan ke memori internal" (info);
+  - crash berulang → lihat P16.
+- **Test:** `AdvisorTest` dengan beberapa contoh sesi menghasilkan saran yang tepat, dan saran tidak muncul tanpa data.
+
+### P15. Rekomendasi otomatis saat pertama kali dibuka
+- Saat belum ada `perf_preset`, launcher memilih preset dari perangkat: SoC (`Build.SOC_MODEL`), RAM (`MemoryInfo.totalMem`), refresh maksimal panel, dan dukungan sustained mode. SM8845 dengan 12 GB menghasilkan **Seimbang**; RAM < 10 GB atau SoC lain menghasilkan **Dingin & Stabil**.
+- Alasan pemilihan ditampilkan ("Dipilih otomatis untuk Snapdragon 8 Gen 5 + 12 GB RAM"). Pemain bisa mengubahnya kapan saja.
+
+### P16. Pemulihan cerdas saat crash
+- Riwayat kode keluar disimpan di `gow3port/launch-history` (5 terakhir).
+- Kalau game keluar tidak normal (bukan 0, bukan dihentikan pemain) **2 kali berturut-turut** dengan `cpu_mode=fast`, launcher menawarkan dialog "Game sering berhenti. Coba mode CPU Akurat?" [Ganti & mulai ulang]. Mode Fast mematikan emulasi TSO, yang bisa memicu race.
+- Kode 4 (Vulkan gagal) memunculkan saran mengembalikan "Mode render GPU" ke Otomatis (P11). Kode 127 menampilkan bahwa library runtime tidak cocok (sudah ditampilkan baris log terakhirnya).
+- Tidak ada perubahan otomatis tanpa persetujuan pemain.
+
+### P17. Multiplier LSFG otomatis
+- Opsi "Otomatis" di Frame Gen memilih multiplier terbesar sehingga `fps_cap × multiplier ≤ refresh maksimal panel` dan hasilnya kelipatan rata. Contohnya 60 → x2 (120 Hz), dan saat Smart FPS memasang cap 30 → x4 tetap 120 Hz.
+- Saat cap berubah di tengah permainan, `lsfg-vk.toml` (dipantau live oleh lsfg-vk, lihat komentar di `run-gow3.sh`) diperbarui, sehingga gerak di layar tetap 120 Hz walaupun game turun ke 30.
+
+### P18. Backup save otomatis sebelum bermain
+- Sebelum setiap peluncuran, `SaveManager`/`SaveArchive` (sudah ada, dipakai kartu Save di Tentang) membuat cadangan otomatis dan menyimpan 5 terakhir.
+- Tombol "Pulihkan" sudah ada di kartu Save.
+- Kalau folder save kosong, langkah ini dilewati.
+
+### P19. Sadar baterai
+- Kalau baterai < 20% dan tidak mengecas, Beranda menyarankan preset Dingin.
+- Kalau sedang mengecas dan suhu > 40 °C, Beranda menyarankan **bypass charging** (didukung iQOO 15R) atau melepas charger.
+- Data dari `ACTION_BATTERY_CHANGED` (sumber yang sama dengan monitor P7).
+
 ## Bagian 2: UI/UX modern
 
 ### Tema gaming biru langit dan ikon baru
@@ -105,10 +190,11 @@ Pembaca data baru di Java, `ro/cobrabm/fexdroid/DeviceStats.java`. Path file bis
 - Test C++ lokal dengan `python -m ziglang c++` sebelum push.
 - Test Python lokal dijalankan sebelum push.
 - launcher-check di CI (assembleRelease + testDebugUnitTest + C++ + Python) harus hijau sebelum build native jalan.
-- Tiga push terpisah, masing-masing ditunggu sampai hijau:
-  1. Bagian 1 backend + test (P1–P6);
-  2. Monitor + HUD (P7);
-  3. Tema, ikon, tab, dan bahasa.
+- Empat push terpisah, masing-masing ditunggu sampai hijau:
+  1. Bagian 1 + 1B backend + test (P1–P6, P8–P12);
+  2. Monitor + HUD + sampler (P7);
+  3. Fitur cerdas (P13–P19) dengan unit test logika murni (`SmartFps`, `Advisor`, rekomendasi preset);
+  4. Tema, ikon, tab, dan bahasa.
 
   APK diserahkan hanya kalau build penuh dan publish hijau.
 - Risiko native dijaga kecil: Thermal Guard hanya mengubah nilai limit yang sudah didukung (30), dibaca paling sering sekali per detik, dan kalau file tidak ada perilakunya sama persis dengan sekarang.
@@ -122,4 +208,10 @@ Pembaca data baru di Java, `ro/cobrabm/fexdroid/DeviceStats.java`. Path file bis
 2. Di `android-thermal.log`: `Thermal guard: cap 30` / `released`, dan status tidak lagi bertahan di 4.
 3. Patch "Skip Intro" tercantum di baris `Patches:` kalau Skip intros on.
 4. UI: tiga tab bawah, lima sub-tab Performa, preset mengubah nilai dan label "Kustom" muncul saat diubah manual, seluruh teks berbahasa Indonesia secara default, aksen biru langit, ikon baru di layar utama HP.
-5. Monitor: di launcher, suhu °C dan RAM berubah setiap 2 detik. Di game, HUD menampilkan FPS, suhu, GPU, dan RAM. Data yang diblokir sistem tampil "—" dan tidak membuat crash.
+5. Spek: log memuat `CPU: prime cores 6-7, helpers on 0-5` dan `Storage: game on … (removable)`. Bandingkan `Frame stats:` dengan `cpu_placement` on vs off, serta mode render Otomatis vs GMEM vs SYSMEM.
+6. Cerdas:
+   - `android-thermal.log` memuat `Smart FPS: cap 30 (forecast 0.96)` sebelum status mencapai 3, lalu `released`;
+   - kartu "Sesi terakhir" muncul setelah keluar game, beserta saran yang bisa diterapkan;
+   - dua crash berturut-turut dengan mode Fast memunculkan tawaran mode Akurat;
+   - folder backup save bertambah setiap kali bermain (maksimal 5).
+7. Monitor: di launcher, suhu °C dan RAM berubah setiap 2 detik. Di game, HUD menampilkan FPS, suhu, GPU, dan RAM. Data yang diblokir sistem tampil "—" dan tidak membuat crash.
