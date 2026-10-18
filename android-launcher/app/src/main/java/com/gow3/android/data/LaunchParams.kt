@@ -160,6 +160,16 @@ internal object LaunchParams {
             descriptionRes = R.string.param_desc_gpu_render_mode,
         ),
         LaunchParam(
+            // GameActivity：游戏中的性能监视器（HudOverlay），缺省开启；游戏内菜单也能开关。
+            key = "hud_monitor", labelRes = R.string.param_hud_monitor, groupRes = R.string.param_group_diagnostics,
+            options = listOf(
+                LaunchOption("0", R.string.param_option_off),
+                LaunchOption("1", R.string.param_option_on),
+            ),
+            defaultValue = "1",
+            descriptionRes = R.string.param_desc_hud_monitor,
+        ),
+        LaunchParam(
             // run-gow3.sh：1 时导出 GOW3_FRAME_STATS=1，每 5 秒在 android-game.log 记录 Frame stats。
             key = "frame_stats", labelRes = R.string.param_frame_stats, groupRes = R.string.param_group_diagnostics,
             options = listOf(

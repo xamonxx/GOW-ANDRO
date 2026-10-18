@@ -39,6 +39,7 @@ import com.gow3.android.data.Gow3Ini
 import com.gow3.android.data.ImportResult
 import com.gow3.android.data.LosslessDllManager
 import com.gow3.android.data.RemoveResult
+import com.gow3.android.feature.performance.DeviceMonitorCard
 import com.gow3.android.ui.components.LauncherColors
 import com.gow3.android.ui.components.ScreenColumn
 import com.gow3.android.ui.components.formatBytes
@@ -97,7 +98,9 @@ internal fun HomeScreen(
         Text(stringResource(R.string.title_remastered), color = LauncherColors.textMuted, fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 2.sp)
         Spacer(Modifier.height(28.dp))
         LaunchButton(onStartGame)
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(16.dp))
+        DeviceMonitorCard()
+        Spacer(Modifier.height(16.dp))
         LaunchParameters(gameDir, updateDir, iniValues, ::save, onChooseGameFolder, onChooseUpdateFolder)
         Spacer(Modifier.height(16.dp))
         FrameGenerationCard(

@@ -248,6 +248,12 @@ public final class GameActivity extends Activity {
         controllerOverlay.setVisibility(controllerEnabled() ? View.VISIBLE : View.GONE);
         screen.addView(controllerOverlay,frame(-1,-1,Gravity.CENTER));
 
+        hud=new HudOverlay(this);
+        hud.setVisibility(hudEnabled() ? View.VISIBLE : View.GONE);
+        FrameLayout.LayoutParams hudAt=frame(-2,-2,Gravity.TOP|Gravity.LEFT);
+        hudAt.setMargins(dp(12),dp(10),0,0);
+        screen.addView(hud,hudAt);
+
         handle=new View(this);
         GradientDrawable grip=new GradientDrawable(); grip.setColor(0x80c6ad76); grip.setCornerRadius(dp(4));
         handle.setBackground(grip); handle.setContentDescription("Open game menu");
@@ -317,6 +323,13 @@ public final class GameActivity extends Activity {
                 // 运行中改倍率时 layer 会热更新 toml，但设备显示模式不会自动跟着变：让对话框在
                 // 生效后回调这里重选 display mode（4.3 复评）。
                 .showLossless(() -> { Process p=game; return p!=null && p.isAlive(); }, this::pickRefreshRate);
+        });
+
+        hudItem=menuItem("ic_tune",getString(com.gow3.android.R.string.hud_menu_title),"",() -> {
+            boolean enabled=!hudEnabled();
+            writeSetting("hud_monitor",enabled ? "1" : "0");
+            hud.setVisibility(enabled ? View.VISIBLE : View.GONE);
+            closeDrawer();
         });
 
         section("Controls");
@@ -441,6 +454,81 @@ public final class GameActivity extends Activity {
             : lsfgOn ? lsfg+"× frames · flow "
             +(setting("lsfg_flow_scale")==null ? "1.0" : setting("lsfg_flow_scale")) : "Off");
         setDetail(controllerItem,controllerEnabled() ? "On" : "Off");
+        setDetail(hudItem,hudEnabled() ? "On" : "Off");
+    }
+
+    // ---- Performance monitor (HUD): FPS, temperatures, GPU, memory ----
+    private HudOverlay hud;
+    private LinearLayout hudItem;
+    private final DeviceStats deviceStats=DeviceStats.system();
+    private long lastFrames=-1, lastDirectFrames=-1, lastFramesAt;
+    private int displayFps=-1, monitorTick;
+    /** gow3.ini hud_monitor, default on. */
+    private boolean hudEnabled() { return !"0".equals(setting("hud_monitor")); }
+    /** Every second (pollFrames): the displayed frame rate from the display bridge's counters; every
+     *  2 s the HUD's other readings. A reading the phone denies shows as a dash. */
+    private void sampleMonitor() {
+        long now=SystemClock.elapsedRealtime(), frames=DisplayBridge.frames(), direct=DisplayBridge.directFrames();
+        if (lastFrames>=0 && now>lastFramesAt)
+            displayFps=(int)Math.round(Math.max(frames-lastFrames,direct-lastDirectFrames)*1000.0/(now-lastFramesAt));
+        lastFrames=frames; lastDirectFrames=direct; lastFramesAt=now;
+        if (hud==null || hud.getVisibility()!=View.VISIBLE || (monitorTick++%2)!=0) return;
+
+        android.content.Intent battery=registerReceiver(null,new android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED));
+        int tenths=battery==null ? Integer.MIN_VALUE : battery.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE,Integer.MIN_VALUE);
+        float batteryC=tenths==Integer.MIN_VALUE ? Float.NaN : tenths/10f;
+        int status=-1;
+        if (Build.VERSION.SDK_INT>=29) {
+            android.os.PowerManager power=(android.os.PowerManager)getSystemService(POWER_SERVICE);
+            if (power!=null) status=power.getCurrentThermalStatus();
+        }
+        android.app.ActivityManager activities=(android.app.ActivityManager)getSystemService(ACTIVITY_SERVICE);
+        android.app.ActivityManager.MemoryInfo memory=new android.app.ActivityManager.MemoryInfo();
+        if (activities!=null) activities.getMemoryInfo(memory);
+        int gpuBusy=deviceStats.gpuBusyPercent(), gpuMhz=deviceStats.gpuMhz();
+        float socC=deviceStats.socTempC();
+        long gameMb=deviceStats.rssMb(deviceStats.findPid("gow3-probe"));
+
+        String fps=displayFps<0 ? "—" : String.valueOf(displayFps);
+        String[] lines={
+            "FPS "+fps+(thermalCapped ? "  · "+getString(com.gow3.android.R.string.hud_capped) : ""),
+            getString(com.gow3.android.R.string.hud_temp)+" "+celsius(batteryC)+"  SoC "+celsius(socC),
+            "GPU "+(gpuBusy<0 ? "—" : gpuBusy+"%")+"  "+(gpuMhz<0 ? "" : gpuMhz+" MHz"),
+            "RAM "+gigabytes(gameMb)+" "+getString(com.gow3.android.R.string.hud_game)+"  "
+                +gigabytes((memory.totalMem-memory.availMem)>>20)+"/"+gigabytes(memory.totalMem>>20),
+        };
+        int fpsColor=displayFps<0 ? HudOverlay.TEXT : displayFps>=55 || (thermalCapped && displayFps>=28)
+            ? HudOverlay.OK : displayFps>=28 ? HudOverlay.WARN : HudOverlay.HOT;
+        int tempColor=status<0 ? HudOverlay.TEXT : status<=1 ? HudOverlay.OK : status==2 ? HudOverlay.WARN : HudOverlay.HOT;
+        hud.show(lines,new int[]{fpsColor,tempColor,HudOverlay.ACCENT,HudOverlay.TEXT});
+    }
+    private static String celsius(float c) {
+        return Float.isNaN(c) ? "—" : String.format(Locale.ROOT,"%.0f°C",c);
+    }
+    private static String gigabytes(long mb) {
+        return mb<0 ? "—" : String.format(Locale.ROOT,"%.1fG",mb/1024f);
+    }
+    /** One gow3.ini key, rewritten in place or appended, other lines kept (the launcher's rules). */
+    private void writeSetting(String key,String value) {
+        File ini=new File(BASE,"gow3.ini"), temporary=new File(BASE,"gow3.ini.tmp");
+        try {
+            java.util.List<String> lines=ini.isFile() ? Files.readAllLines(ini.toPath(),StandardCharsets.UTF_8)
+                                                       : new ArrayList<>();
+            boolean replaced=false;
+            for (int i=0;i<lines.size();i++) {
+                String line=lines.get(i);
+                int eq=line.indexOf('=');
+                if (eq>0 && !line.startsWith("#") && line.substring(0,eq).trim().equals(key)) {
+                    lines.set(i,key+"="+value); replaced=true;
+                }
+            }
+            if (!replaced) lines.add(key+"="+value);
+            Files.write(temporary.toPath(),(String.join("\n",lines)+"\n").getBytes(StandardCharsets.UTF_8));
+            if (!temporary.renameTo(ini)) throw new java.io.IOException("cannot replace "+ini);
+        } catch (Exception ex) {
+            temporary.delete();
+            android.util.Log.w("God of War III","Cannot save "+key+": "+ex);
+        }
     }
 
     private void openDrawer() {
@@ -811,6 +899,7 @@ public final class GameActivity extends Activity {
     private void pollFrames() {
         if (destroyed) return;
         if (!hadError && DisplayBridge.directFrames()>0) status.setVisibility(View.GONE);
+        sampleMonitor();
         // run-gow3.sh 在 LSFG 运行时失败、自动回退到普通 Vulkan 时会写这个标记：这时刷新率要退回
         // 「无 LSFG」的目标，否则会停在 LSFG 倍率对应的高刷上空跑（4.1 复评）。
         if (!lsfgFallbackOff && new File(BASE,"lsfg-fallback.marker").isFile()) {
