@@ -45,6 +45,19 @@ class SmartFpsTest {
     }
 
     @Test
+    fun `missing forecast readings neither break a hot streak nor release the cap`() {
+        // The iQOO 15R log: every other read answered NaN (two reads less than a second apart).
+        val smart = SmartFps()
+        for (s in 0..16) smart.update(s * 1000L, 2, if (s % 2 == 0) 0.97f else Float.NaN, 60, 60)
+        assertTrue(smart.capped())
+        assertEquals(SmartFps.Reason.FORECAST, smart.reason())
+        // LIGHT status, but the last real forecast is still hot: stays capped through NaN reads.
+        assertTrue(smart.run(80, 140, 1, Float.NaN, 30))
+        // A real cool reading releases it.
+        assertFalse(smart.update(141_000, 1, 0.6f, 30, 60))
+    }
+
+    @Test
     fun `low fps while cool caps to an even 30 and retries after 3 minutes`() {
         val smart = SmartFps()
         assertFalse(smart.run(0, 19, 0, 0.5f, 42))

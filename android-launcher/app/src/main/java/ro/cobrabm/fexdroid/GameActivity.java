@@ -196,13 +196,29 @@ public final class GameActivity extends Activity {
         int limit=fpsLimit();
         return limit==0 ? 60 : limit;
     }
+    /** getThermalHeadroom(10), read at most every 2 s and shared by Smart FPS and the thermal log:
+     *  Android answers NaN to reads less than a second apart (the iQOO 15R log was half NaN). A
+     *  reading older than 10 s counts as unknown. Main thread only. */
+    private float headroomValue=Float.NaN;
+    private long headroomReadAt=-1, headroomGoodAt=-1;
+    private float headroom() {
+        if (Build.VERSION.SDK_INT<30) return Float.NaN;
+        long now=SystemClock.elapsedRealtime();
+        if (headroomReadAt<0 || now-headroomReadAt>=2000) {
+            headroomReadAt=now;
+            android.os.PowerManager power=(android.os.PowerManager)getSystemService(POWER_SERVICE);
+            float value=power==null ? Float.NaN : power.getThermalHeadroom(10);
+            if (!Float.isNaN(value)) { headroomValue=value; headroomGoodAt=now; }
+        }
+        return headroomGoodAt>=0 && now-headroomGoodAt<=10000 ? headroomValue : Float.NaN;
+    }
     private void logThermal(String event) {
         String state="";
         android.os.PowerManager power=(android.os.PowerManager)getSystemService(POWER_SERVICE);
         if (power!=null && Build.VERSION.SDK_INT>=29) {
             state=" status="+power.getCurrentThermalStatus();
             if (Build.VERSION.SDK_INT>=30)
-                state+=String.format(Locale.ROOT," headroom(10s)=%.2f",power.getThermalHeadroom(10));
+                state+=String.format(Locale.ROOT," headroom(10s)=%.2f",headroom());
         }
         String line=String.format(Locale.ROOT,"%tT Thermal: %s%s",System.currentTimeMillis(),event,state);
         android.util.Log.i("God of War III",line);
@@ -508,13 +524,10 @@ public final class GameActivity extends Activity {
         int tenths=battery==null ? Integer.MIN_VALUE : battery.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE,Integer.MIN_VALUE);
         float batteryC=tenths==Integer.MIN_VALUE ? Float.NaN : tenths/10f;
         int status=-1;
-        float forecast=Float.NaN;
+        float forecast=headroom();
         if (Build.VERSION.SDK_INT>=29) {
             android.os.PowerManager power=(android.os.PowerManager)getSystemService(POWER_SERVICE);
-            if (power!=null) {
-                status=power.getCurrentThermalStatus();
-                if (Build.VERSION.SDK_INT>=30) forecast=power.getThermalHeadroom(10);
-            }
+            if (power!=null) status=power.getCurrentThermalStatus();
         }
         if (playing) {
             smartTick(status,forecast);

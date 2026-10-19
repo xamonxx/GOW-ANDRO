@@ -22,11 +22,12 @@ public final class SmartFps {
 
     private Reason reason=Reason.NONE;
     private long cappedAt, hotSince=-1, lowSince=-1;
+    private float lastForecast=Float.NaN;
 
     public boolean capped() { return reason!=Reason.NONE; }
     public Reason reason() { return reason; }
 
-    /** Clears the state (a new game start). */
+    /** Clears the decision (a new game start, or a released cap); the last forecast is kept. */
     public void reset() { reason=Reason.NONE; hotSince=-1; lowSince=-1; }
 
     /**
@@ -35,6 +36,9 @@ public final class SmartFps {
      * (0 unlimited). Returns whether the cap should be on after this sample.
      */
     public boolean update(long nowMs,int status,float forecast,int fps,int limit) {
+        // A NaN forecast is a missing reading (Android answers NaN to reads less than a second
+        // apart): it neither breaks a hot streak nor counts as cool; the last reading stands.
+        if (Float.isNaN(forecast)) forecast=lastForecast; else lastForecast=forecast;
         boolean hotForecast=!Float.isNaN(forecast) && forecast>=FORECAST_HOT;
         hotSince=hotForecast ? (hotSince<0 ? nowMs : hotSince) : -1;
         boolean capable=limit==0 || limit>CAP;
