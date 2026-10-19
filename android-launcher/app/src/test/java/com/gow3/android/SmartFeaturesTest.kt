@@ -35,6 +35,26 @@ class SmartFeaturesTest {
     }
 
     @Test
+    fun `a checkpoint leaves a report when the app is killed, and the session goes on`() {
+        val file = File(dir(), "session-last.json")
+        val session = SessionRecorder()
+        session.checkpoint(file, 0, false)
+        assertFalse(file.exists())  // nothing before a start
+        session.start(0, 60, 0)
+        repeat(30) { session.sample(60, 40.0f, 2) }
+        assertEquals(30, session.seconds())
+        session.checkpoint(file, 30_000, false)
+        val text = file.readText()
+        assertTrue(text, text.contains("\"duration_s\": 30"))
+        assertTrue(text, text.contains("\"exit_code\": -1"))
+        assertTrue(session.running())
+        session.sample(30, 41.0f, 3)
+        session.finish(file, 31_000, 139, false)
+        assertTrue(file.readText().contains("\"exit_code\": 139"))
+        assertFalse(session.running())
+    }
+
+    @Test
     fun `history keeps the last codes and spots two crashes in a row`() {
         val file = File(dir(), "launch-history")
         for (code in listOf(0, 1, 139, 2, 11, 6)) SessionRecorder.appendHistory(file, code, 5)

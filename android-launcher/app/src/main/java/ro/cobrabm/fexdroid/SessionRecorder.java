@@ -69,15 +69,29 @@ public final class SessionRecorder {
             removableStorage ? 1 : 0);
     }
 
+    /** Seconds sampled so far. */
+    public int seconds() { return seconds; }
+
+    /** Writes the session so far as a player stop, the session going on: swiping the launcher away
+     *  from the recent apps kills it without onDestroy, and finish() never runs then. */
+    public void checkpoint(File file,long nowMs,boolean removableStorage) {
+        if (startMs>=0) write(file,json(nowMs,STOPPED,removableStorage));
+    }
+
     /** Ends the session; its JSON is written to [file] (best effort). */
     public void finish(File file,long nowMs,int exitCode,boolean removableStorage) {
         if (startMs<0) return;
+        write(file,json(nowMs,exitCode,removableStorage));
+        startMs=-1;
+    }
+
+    /** Written whole, then renamed: the launcher never reads half a file. */
+    private static void write(File file,String text) {
         try {
             File temporary=new File(file.getPath()+".tmp");
-            Files.write(temporary.toPath(),json(nowMs,exitCode,removableStorage).getBytes(StandardCharsets.UTF_8));
+            Files.write(temporary.toPath(),text.getBytes(StandardCharsets.UTF_8));
             if (!temporary.renameTo(file)) temporary.delete();
         } catch (Exception ignored) {}
-        startMs=-1;
     }
 
     /** Appends an exit code to the launch history, keeping the last [keep]. */

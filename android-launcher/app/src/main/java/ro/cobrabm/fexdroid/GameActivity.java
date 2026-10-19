@@ -532,6 +532,9 @@ public final class GameActivity extends Activity {
         if (playing) {
             smartTick(status,forecast);
             session.sample(displayFps,batteryC,status);
+            // Every 30 s: a launcher swiped away from the recent apps never reaches finishSession.
+            if (session.seconds()%30==0)
+                session.checkpoint(new File(BASE,"logs/session-last.json"),SystemClock.elapsedRealtime(),gameOnRemovable());
         }
         if (!hudShown || (monitorTick++%2)!=0) return;
 
